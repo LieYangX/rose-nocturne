@@ -1,0 +1,22 @@
+src/letter-content.js
+  h_1d1a3d05761997 15-16,20,22-28,36-41
+docs/index.html
+  h_1d1a3d05761997 4780-4782,4862-4866
+index.html
+  h_1d1a3d05761997 88-92
+src/main.js
+  h_1d1a3d05761997 1779-1780,1785-1787,1790-1791,1793-1795,1800
+src/styles.css
+  h_1d1a3d05761997 652,654-655,658-669,674-678,682,1766-1770
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2c7d89fcafbcf34b1a6880257eaf0f8653512b0",
+  "prompts": {},
+  "humans": {
+    "h_1d1a3d05761997": {
+      "author": "xiangwei <18573714766@139.com>"
+    }
+  }
+}
