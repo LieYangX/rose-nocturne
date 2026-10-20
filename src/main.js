@@ -245,6 +245,12 @@ function createBouquet() {
     solidPoints.renderOrder = 10;
     bouquetGroup.add(solidPoints);
 
+    // 柔性底层：用更大、更淡的粒子填缝，让花体接近半实体
+    const veilPoints = new THREE.Points(geometry.veil, solidMaterial);
+    veilPoints.name = 'bouquet-veil';
+    veilPoints.renderOrder = 9;
+    bouquetGroup.add(veilPoints);
+
     const glowMaterial = createParticleMaterial({
         opacity: 0.72,
         size: 1.1,
@@ -2475,19 +2481,15 @@ function updateScene() {
     const breath = reduceMotion ? 0 : Math.sin(elapsed * 0.55) * 0.006;
     bouquetGroup.position.y = breath;
 
-    // 玻璃打开后让花束向外舒展，最终略宽于底座
-    const bloomEase = smoothstep(0.55, 1, state.openProgress);
-    const bloomAmount = isMobile ? 0.05 : 0.32;
-    const bloomScale = 1 + bloomEase * bloomAmount;
-    bouquetGroup.scale.set(1.05 * bloomScale, 1.05, 1.05 * bloomScale);
+    // 开盒后保持花束原始体量，不再向外扩散
+    bouquetGroup.scale.set(1.05, 1.05, 1.05);
 
     if (bouquetMaterials) {
-        const materialMotion = state.mode === 'open' || state.mode === 'opening' ? bloomEase : 0;
-        bouquetMaterials.solidMaterial.uniforms.uSway.value = 0.003 + materialMotion * 0.008;
-        bouquetMaterials.solidMaterial.uniforms.uDrift.value = 0.002 + materialMotion * 0.0045;
-        bouquetMaterials.glowMaterial.uniforms.uSway.value = 0.004 + materialMotion * 0.014;
-        bouquetMaterials.glowMaterial.uniforms.uDrift.value = 0.003 + materialMotion * 0.007;
-        bouquetMaterials.glowMaterial.uniforms.uSwirl.value = 0.003 + materialMotion * 0.01;
+        bouquetMaterials.solidMaterial.uniforms.uSway.value = 0.003;
+        bouquetMaterials.solidMaterial.uniforms.uDrift.value = 0.002;
+        bouquetMaterials.glowMaterial.uniforms.uSway.value = 0.004;
+        bouquetMaterials.glowMaterial.uniforms.uDrift.value = 0.003;
+        bouquetMaterials.glowMaterial.uniforms.uSwirl.value = 0.003;
 
         const pointerIdle = state.mode !== 'open' || now - state.lastPointerMove > 0.16;
         if (pointerIdle) {

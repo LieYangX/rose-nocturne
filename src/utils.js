@@ -192,6 +192,30 @@ export class PointCloudBuilder {
         geometry.computeBoundingSphere();
         return geometry;
     }
+
+    /**
+     * 构建低透明度柔性底层，用更大的粒子填充点与点之间的空隙
+     * @param {number} sizeMultiplier 粒子尺寸倍数
+     * @param {number} alphaMultiplier 透明度倍数
+     * @returns {THREE.BufferGeometry} 柔性底层几何体
+     */
+    buildVeil(sizeMultiplier = 2.4, alphaMultiplier = 0.1) {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(this.normals, 3));
+        geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(this.colors, 3));
+        geometry.setAttribute(
+            'aSize',
+            new THREE.Float32BufferAttribute(this.sizes.map((size) => size * sizeMultiplier), 1)
+        );
+        geometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(this.seeds, 1));
+        geometry.setAttribute(
+            'aAlpha',
+            new THREE.Float32BufferAttribute(this.alphas.map((alpha) => alpha * alphaMultiplier), 1)
+        );
+        geometry.computeBoundingSphere();
+        return geometry;
+    }
 }
 
 /**

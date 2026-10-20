@@ -8,6 +8,7 @@ import {
 } from './utils.js';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const PARTICLE_SIZE_SCALE = 0.86;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 const COLORS = {
@@ -16,8 +17,8 @@ const COLORS = {
     roseRed: new THREE.Color('#b01e37'),
     roseEdge: new THREE.Color('#d95365'),
     roseDew: new THREE.Color('#ffd0a8'),
-    stemDark: new THREE.Color('#122719'),
-    stemGreen: new THREE.Color('#29442d'),
+    stemDark: new THREE.Color('#0b1a10'),
+    stemGreen: new THREE.Color('#1b2c1f'),
     leafDeep: new THREE.Color('#15281a'),
     leafGreen: new THREE.Color('#34502f'),
     leafLight: new THREE.Color('#74845a'),
@@ -95,8 +96,8 @@ function createPetalSurface(petal) {
             + petal.swirl * Math.pow(u, 1.5);
 
         let height = petal.baseY
-            + petal.arch * Math.sin(Math.PI * Math.pow(u, 0.78) * 0.9)
-            - petal.tipDrop * Math.pow(u, 3);
+            + petal.arch * Math.pow(u, 1.12)
+            - petal.tipDrop * Math.pow(u, 4);
         height += petal.cup * v * v * (0.35 + 0.65 * u);
         height += petal.tipCurl * Math.pow(u, 3) * v * v;
         height += petal.fold * Math.sin(v * Math.PI * 2 + petal.phase) * u;
@@ -105,7 +106,10 @@ function createPetalSurface(petal) {
         const notch = (petal.notch ?? 0)
             * Math.pow(u, 5)
             * Math.max(0, 1 - Math.abs(v) * 2.8);
-        const radius = radial + ripple - notch;
+        const edgeCurl = (petal.edgeCurl ?? 0)
+            * Math.pow(u, 2.1)
+            * Math.pow(Math.abs(v), 1.8);
+        const radius = radial + ripple - notch - edgeCurl;
 
         return new THREE.Vector3(
             Math.cos(angle) * radius,
@@ -182,12 +186,12 @@ function emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, rand
     const surface = createPetalSurface(petal);
     const layerPosition = clamp(fraction, 0, 1.15);
     const density = options.density ?? 1;
-    const rowCount = Math.max(6, Math.round((8 + layerPosition * 3) * quality * density));
-    const cellCount = Math.max(5, Math.round((6 + layerPosition * 3) * quality * density));
+    const rowCount = Math.max(9, Math.round((16 + layerPosition * 5) * quality * density));
+    const cellCount = Math.max(8, Math.round((12 + layerPosition * 5) * quality * density));
     const petalTint = options.tint ?? (0.94 + random() * 0.08);
     const headTint = options.headTint ?? 1;
     const headWarmth = options.headWarmth ?? 0;
-    const petalSize = options.size ?? (0.0115 + layerPosition * 0.003);
+    const petalSize = options.size ?? (0.0082 + layerPosition * 0.0021);
     const dewChance = options.dewChance ?? 0.0045;
 
     for (let row = 0; row < rowCount; row += 1) {
@@ -320,18 +324,20 @@ function addSpiralRose(solids, glow, head, random, quality, headTint = 1, headWa
         const fraction = petalIndex / (petalCount - 1);
         const petal = {
             angle: petalIndex * GOLDEN_ANGLE + 0.34 + (random() - 0.5) * 0.05,
-            inner: 0.01 + fraction * 0.025,
-            outer: 0.1 + fraction * 0.38,
-            width: 0.085 + fraction * 0.19,
-            baseY: 0.12 * (1 - fraction) + 0.006,
-            arch: 0.31 - fraction * 0.11,
-            tipDrop: 0.012 + fraction * 0.075,
-            cup: 0.06 - fraction * 0.025,
-            wrap: 0.84 - fraction * 0.3,
+            inner: 0.01 + fraction * 0.02,
+            outer: 0.09 + fraction * 0.32,
+            width: 0.075 + fraction * 0.16,
+            baseY: 0.11 * (1 - fraction) + 0.035,
+            arch: 0.29 - fraction * 0.07,
+            tipDrop: 0.002 + fraction * 0.018,
+            cup: 0.055 - fraction * 0.012,
+            wrap: 0.88 - fraction * 0.24,
             swirl: (1.28 * (1 - fraction) + 0.12) * (0.9 + random() * 0.2),
             fold: 0.007 + fraction * 0.009,
             phase: random() * Math.PI * 2,
-            tipCurl: (0.35 - fraction) * 0.035
+            tipCurl: 0.012 - fraction * 0.002,
+            edgeCurl: 0.03 + fraction * 0.045,
+            notch: 0.008 + fraction * 0.012
         };
         emitRosePetal(
             solids,
@@ -352,38 +358,40 @@ function addSpiralRose(solids, glow, head, random, quality, headTint = 1, headWa
             count: 8,
             rotation: 0.18,
             inner: 0.075,
-            outer: 0.44,
-            width: 0.21,
-            baseY: 0.065,
-            arch: 0.22,
-            tipDrop: 0.03,
+            outer: 0.4,
+            width: 0.19,
+            baseY: 0.08,
+            arch: 0.24,
+            tipDrop: 0.012,
             cup: 0.05,
             wrap: 0.58,
             swirl: 0.06,
             fold: 0.016,
-            tipCurl: -0.015,
+            tipCurl: 0.01,
+            edgeCurl: 0.075,
             notch: 0.015,
             tint: 0.86,
-            size: 0.0135,
+            size: 0.0095,
             rimCount: 0
         },
         {
             count: 9,
             rotation: 0.62,
             inner: 0.09,
-            outer: 0.46,
-            width: 0.23,
-            baseY: 0.045,
-            arch: 0.2,
-            tipDrop: 0.04,
+            outer: 0.425,
+            width: 0.21,
+            baseY: 0.06,
+            arch: 0.22,
+            tipDrop: 0.016,
             cup: 0.045,
             wrap: 0.55,
             swirl: 0.04,
             fold: 0.02,
-            tipCurl: -0.02,
+            tipCurl: 0.008,
+            edgeCurl: 0.07,
             notch: 0.025,
             tint: 0.8,
-            size: 0.014,
+            size: 0.0098,
             rimCount: 0
         }
     ];
@@ -445,7 +453,8 @@ function addSpiralRose(solids, glow, head, random, quality, headTint = 1, headWa
             swirl: 2.1,
             fold: 0.003,
             phase: random() * Math.PI * 2,
-            tipCurl: 0.01
+            tipCurl: 0.01,
+            edgeCurl: 0.02
         };
         const surface = createPetalSurface(petal);
         for (let row = 0; row < 8; row += 1) {
@@ -540,13 +549,17 @@ function petalSizeForCore(random) {
  * @param {number} quality 画质系数
  */
 function addStems(solids, layout, random, quality) {
+    // 枝条延伸到花头，纸口上方留出一小段深色花茎
+    const visibleTop = 3.55;
     for (const head of layout) {
         const start = head.position.clone();
         start.y -= 0.12;
+        const endAngle = random() * Math.PI * 2;
+        const endRadius = 0.04 + random() * 0.16;
         const end = new THREE.Vector3(
-            (random() - 0.5) * 0.1,
-            0.44 + random() * 0.08,
-            (random() - 0.5) * 0.1
+            Math.cos(endAngle) * endRadius,
+            0.3 + random() * 0.24,
+            Math.sin(endAngle) * endRadius
         );
         const curve = new THREE.CatmullRomCurve3([
             start,
@@ -554,19 +567,22 @@ function addStems(solids, layout, random, quality) {
             new THREE.Vector3(start.x * 0.34, lerp(start.y, end.y, 0.7), start.z * 0.34),
             end
         ]);
-        const segmentCount = Math.round(82 * quality);
-        const radialCount = 4;
+        const segmentCount = Math.round(110 * quality);
+        const radialCount = 6;
 
         for (let segment = 0; segment <= segmentCount; segment += 1) {
             const t = segment / segmentCount;
             const center = curve.getPoint(t);
+            if (center.y > visibleTop) {
+                continue;
+            }
             const tangent = curve.getTangent(t).normalize();
             const side = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
             if (side.lengthSq() < 0.001) {
                 side.set(1, 0, 0);
             }
             const up = new THREE.Vector3().crossVectors(side, tangent).normalize();
-            const radius = 0.008 + 0.003 * (1 - t);
+            const radius = 0.022 + 0.008 * (1 - t);
 
             for (let radial = 0; radial < radialCount; radial += 1) {
                 const angle = (radial / radialCount) * Math.PI * 2 + random() * 0.35;
@@ -575,14 +591,20 @@ function addStems(solids, layout, random, quality) {
                     .addScaledVector(up, Math.sin(angle) * radius);
                 const position = center.clone().add(offset);
                 const normal = offset.clone().normalize();
-                const color = COLORS.stemDark.clone().lerp(COLORS.stemGreen, random() * 0.5);
-                solids.add(position, normal, color, 0.009 + random() * 0.003, random(), 1);
+                const color = COLORS.stemDark.clone().lerp(
+                    COLORS.stemGreen,
+                    0.28 + random() * 0.5
+                );
+                solids.add(position, normal, color, 0.014 + random() * 0.004, random(), 1);
             }
         }
 
         if (random() < 0.55) {
             const t = 0.35 + random() * 0.3;
             const point = curve.getPoint(t);
+            if (point.y > visibleTop) {
+                continue;
+            }
             const thornDirection = new THREE.Vector3(random() - 0.5, 0.2, random() - 0.5).normalize();
             for (let index = 0; index < 7; index += 1) {
                 const position = point.clone().addScaledVector(thornDirection, index * 0.008);
@@ -626,7 +648,7 @@ function addLeaflet(solids, glow, origin, direction, length, width, random, qual
         );
     };
 
-    const sampleCount = Math.round(270 * quality);
+    const sampleCount = Math.round(380 * quality);
     for (let sample = 0; sample < sampleCount; sample += 1) {
         const u = Math.pow(random(), 0.9);
         const v = random() * 2 - 1;
@@ -675,6 +697,58 @@ function addLeaflet(solids, glow, origin, direction, length, width, random, qual
 }
 
 /**
+ * 在包装前口内增加一束明显可见的聚合花茎
+ * @param {PointCloudBuilder} solids 实体粒子
+ * @param {() => number} random 随机函数
+ * @param {number} quality 画质系数
+ */
+function addFrontStemBundle(solids, random, quality) {
+    const bundleCount = 5;
+    for (let stemIndex = 0; stemIndex < bundleCount; stemIndex += 1) {
+        const spread = (stemIndex - (bundleCount - 1) / 2) * 0.075;
+        const base = new THREE.Vector3(spread * 0.4, 0.44, 0.06);
+        const end = new THREE.Vector3(spread, 3.04, 0.5 + Math.sin(stemIndex * 1.7) * 0.025);
+        const curve = new THREE.CatmullRomCurve3([
+            base,
+            new THREE.Vector3(spread * 0.5, 1.35, 0.3),
+            new THREE.Vector3(spread * 0.78, 2.3, 0.43),
+            end
+        ]);
+        const segmentCount = Math.round(74 * quality);
+        const radialCount = 5;
+
+        for (let segment = 0; segment <= segmentCount; segment += 1) {
+            const t = segment / segmentCount;
+            const center = curve.getPoint(t);
+            if (center.y > 3.02) {
+                continue;
+            }
+            const tangent = curve.getTangent(t).normalize();
+            const side = new THREE.Vector3().crossVectors(tangent, WORLD_UP).normalize();
+            if (side.lengthSq() < 0.001) {
+                side.set(1, 0, 0);
+            }
+            const up = new THREE.Vector3().crossVectors(side, tangent).normalize();
+            const radius = 0.015 + 0.004 * (1 - t);
+
+            for (let radial = 0; radial < radialCount; radial += 1) {
+                const angle = (radial / radialCount) * Math.PI * 2 + random() * 0.3;
+                const offset = new THREE.Vector3()
+                    .addScaledVector(side, Math.cos(angle) * radius)
+                    .addScaledVector(up, Math.sin(angle) * radius);
+                const position = center.clone().add(offset);
+                const normal = offset.clone().normalize();
+                const color = COLORS.stemGreen.clone().lerp(
+                    COLORS.champagneShadow,
+                    random() * 0.22
+                );
+                solids.add(position, normal, color, 0.011 + random() * 0.003, random(), 1);
+            }
+        }
+    }
+}
+
+/**
  * 添加围绕花束的叶簇
  * @param {PointCloudBuilder} solids 实体粒子
  * @param {PointCloudBuilder} glow 发光粒子
@@ -685,23 +759,24 @@ function addLeaves(solids, glow, random, quality) {
     const sprigAngles = [0.35, 1.2, 2.05, 2.95, 3.85, 4.8, 5.7];
     for (let sprigIndex = 0; sprigIndex < sprigAngles.length; sprigIndex += 1) {
         const angle = sprigAngles[sprigIndex];
-        const radius = 0.98 + random() * 0.2;
+        // 叶片围绕花冠外缘展开，藏在宽纸口里
+        const radius = 0.5 + random() * 0.25;
         const base = new THREE.Vector3(
             Math.cos(angle) * radius,
-            2.68 + random() * 0.5,
+            3.15 + random() * 0.25,
             Math.sin(angle) * radius
         );
         const outward = new THREE.Vector3(
             Math.cos(angle),
-            0.08 + random() * 0.14,
+            0.1 + random() * 0.14,
             Math.sin(angle)
         ).normalize();
 
-        const rachisLength = 0.4 + random() * 0.18;
+        const rachisLength = 0.28 + random() * 0.1;
         const stemEnd = base.clone().addScaledVector(outward, rachisLength);
         const stemCurve = new THREE.LineCurve3(base, stemEnd);
-        for (let step = 0; step < 36; step += 1) {
-            const point = stemCurve.getPoint(step / 36);
+        for (let step = 0; step < 42; step += 1) {
+            const point = stemCurve.getPoint(step / 42);
             const normal = new THREE.Vector3(-outward.z, 0.4, outward.x).normalize();
             solids.add(point, normal, COLORS.stemGreen.clone(), 0.009, random(), 1);
         }
@@ -738,6 +813,60 @@ function addLeaves(solids, glow, random, quality) {
             }
         }
     }
+
+    // 最外圈十二朵玫瑰各补一小簇绿叶，让外沿也有绿色衬托
+    const outerSprigCount = 12;
+    for (let outerIndex = 0; outerIndex < outerSprigCount; outerIndex += 1) {
+        const angle = 0.14 + (outerIndex / outerSprigCount) * Math.PI * 2;
+        const radius = 1.2 + random() * 0.12;
+        const base = new THREE.Vector3(
+            Math.cos(angle) * radius,
+            2.92 + random() * 0.12,
+            Math.sin(angle) * radius
+        );
+        const outward = new THREE.Vector3(
+            Math.cos(angle),
+            0.16 + random() * 0.12,
+            Math.sin(angle)
+        ).normalize();
+
+        const rachisLength = 0.2 + random() * 0.06;
+        const stemEnd = base.clone().addScaledVector(outward, rachisLength);
+        const stemCurve = new THREE.LineCurve3(base, stemEnd);
+        for (let step = 0; step < 30; step += 1) {
+            const point = stemCurve.getPoint(step / 30);
+            const normal = new THREE.Vector3(-outward.z, 0.4, outward.x).normalize();
+            solids.add(point, normal, COLORS.leafGreen.clone(), 0.009, random(), 1);
+        }
+
+        addLeaflet(
+            solids,
+            glow,
+            stemEnd.clone().addScaledVector(outward, 0.02),
+            outward.clone().add(new THREE.Vector3(0, 0.02, 0)).normalize(),
+            0.22 + random() * 0.04,
+            0.12 + random() * 0.03,
+            random,
+            quality
+        );
+
+        for (const side of [-1, 1]) {
+            const direction = outward.clone()
+                .applyAxisAngle(WORLD_UP, side * (0.52 + random() * 0.08));
+            direction.y += 0.04 + random() * 0.06;
+            direction.normalize();
+            addLeaflet(
+                solids,
+                glow,
+                base.clone().addScaledVector(outward, rachisLength * 0.55),
+                direction,
+                0.18 + random() * 0.04,
+                0.1 + random() * 0.03,
+                random,
+                quality
+            );
+        }
+    }
 }
 
 /**
@@ -755,11 +884,15 @@ function addPaperSurface(solids, glow, random, quality, config) {
         const pleat = Math.sin(v * Math.PI * config.folds + config.phase + u * 2.1);
         const seamFlare = config.seamFlare ?? 0.16;
         const seamHeight = config.seamHeight ?? 0.2;
+        const profile = config.sine
+            ? Math.sin(u * Math.PI * 0.5)
+            : Math.pow(u, config.curve ?? 1.35);
+        const bow = (config.bow ?? 0) * Math.sin(Math.PI * u);
         const radius = lerp(
             config.innerRadius,
             config.outerRadius + seam * seamFlare,
-            Math.pow(u, config.curve ?? 1.35)
-        ) + pleat * 0.042 * (0.35 + 0.65 * u);
+            profile
+        ) + bow + pleat * 0.042 * (0.35 + 0.65 * u);
         const height = lerp(config.baseY, config.topY + seam * seamHeight, u)
             + Math.cos(v * Math.PI * 4 + config.phase) * 0.03 * u;
         return new THREE.Vector3(
@@ -829,7 +962,7 @@ function addPaperSurface(solids, glow, random, quality, config) {
  * @param {number} quality 画质系数
  */
 function addPaper(solids, glow, random, quality) {
-    const frontGap = 0.23;
+    const frontGap = 0.06;
     // 下半部裙摆：底部宽、腰部收窄，形成外扩的礼物包装轮廓
     addPaperSurface(solids, glow, random, quality, {
         angleStart: -Math.PI,
@@ -841,9 +974,9 @@ function addPaper(solids, glow, random, quality) {
         curve: 0.78,
         folds: 9.0,
         phase: 0.4,
-        count: 22000,
-        pointSize: 0.014,
-        alpha: 0.56,
+        count: 52000,
+        pointSize: 0.009,
+        alpha: 0.58,
         reverseColor: true,
         trimBottom: true,
         seamFlare: 0.02,
@@ -855,15 +988,17 @@ function addPaper(solids, glow, random, quality) {
         angleStart: Math.PI * 0.5 + frontGap,
         angleEnd: Math.PI * 0.5 - frontGap + Math.PI * 2,
         innerRadius: 0.58,
-        outerRadius: 1.02,
+        outerRadius: 1.6,
         baseY: 1.32,
-        topY: 2.36,
-        curve: 1.4,
+        topY: 2.65,
+        curve: 0.95,
+        bow: 0.08,
+        sine: true,
         folds: 6.5,
         phase: 1.4,
-        count: 16000,
-        pointSize: 0.014,
-        alpha: 0.52
+        count: 60000,
+        pointSize: 0.0085,
+        alpha: 0.6
     });
 
     // 背后的大张衬纸，从腰部向上舒展
@@ -871,15 +1006,17 @@ function addPaper(solids, glow, random, quality) {
         angleStart: Math.PI * 1.5 - 1.42,
         angleEnd: Math.PI * 1.5 + 1.42,
         innerRadius: 0.64,
-        outerRadius: 1.5,
+        outerRadius: 1.72,
         baseY: 1.24,
-        topY: 2.9,
-        curve: 1.48,
+        topY: 2.95,
+        curve: 1.3,
+        bow: 0.06,
+        sine: true,
         folds: 4.2,
         phase: 2.1,
-        count: 11000,
-        pointSize: 0.015,
-        alpha: 0.46
+        count: 42000,
+        pointSize: 0.009,
+        alpha: 0.5
     });
 
     // 正面叠一层短折纸，遮住花茎并让腰部更有层次
@@ -893,9 +1030,9 @@ function addPaper(solids, glow, random, quality) {
         curve: 0.8,
         folds: 3.4,
         phase: 4.6,
-        count: 6500,
-        pointSize: 0.014,
-        alpha: 0.54,
+        count: 19000,
+        pointSize: 0.009,
+        alpha: 0.56,
         reverseColor: true,
         trimBottom: true,
         seamFlare: 0.02,
@@ -1059,8 +1196,17 @@ export function createBouquetGeometry({ quality = 1, seed = 20261020, singleRose
         }
     }
 
+    // 统一缩小整束粒子，让高频细节更细腻
+    for (let index = 0; index < solids.sizes.length; index += 1) {
+        solids.sizes[index] *= PARTICLE_SIZE_SCALE;
+    }
+    for (let index = 0; index < glow.sizes.length; index += 1) {
+        glow.sizes[index] *= PARTICLE_SIZE_SCALE;
+    }
+
     return {
         solids: solids.build(),
+        veil: solids.buildVeil(6.2, 0.3),
         glow: glow.build(),
         layout,
         solidCount: solids.sizes.length,
