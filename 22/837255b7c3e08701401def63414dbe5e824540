@@ -1,0 +1,42 @@
+.editorconfig
+  h_1d1a3d05761997 1-12
+.gitattributes
+  h_1d1a3d05761997 1-14
+.gitignore
+  h_1d1a3d05761997 1-15
+README.md
+  h_1d1a3d05761997 1-89
+docs/index.html
+  h_1d1a3d05761997 1-4817
+index.html
+  h_1d1a3d05761997 1-62
+package.json
+  h_1d1a3d05761997 1-18
+pnpm-lock.yaml
+  h_1d1a3d05761997 1-467
+src/geometry.js
+  h_1d1a3d05761997 1-924
+src/glassCase.js
+  h_1d1a3d05761997 1-334
+src/main.js
+  h_1d1a3d05761997 1-821
+src/materials.js
+  h_1d1a3d05761997 1-508
+src/styles.css
+  h_1d1a3d05761997 1-536
+src/utils.js
+  h_1d1a3d05761997 1-232
+vite.config.js
+  h_1d1a3d05761997 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22837255b7c3e08701401def63414dbe5e824540",
+  "prompts": {},
+  "humans": {
+    "h_1d1a3d05761997": {
+      "author": "xiangwei <18573714766@139.com>"
+    }
+  }
+}
