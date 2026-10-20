@@ -1,0 +1,18 @@
+docs/index.html
+  h_1d1a3d05761997 4763-4764
+src/main.js
+  h_1d1a3d05761997 664-673
+src/styles.css
+  h_1d1a3d05761997 27-31,66-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3726abd6f574b03959a27fbb6482a38aa42055d7",
+  "prompts": {},
+  "humans": {
+    "h_1d1a3d05761997": {
+      "author": "xiangwei <18573714766@139.com>"
+    }
+  }
+}
