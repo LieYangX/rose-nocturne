@@ -157,8 +157,8 @@
                     <div class="guide-item">
                         <span class="guide-item__num">05</span>
                         <div>
-                            <h3 class="guide-item__title">打开音乐盒</h3>
-                            <p class="guide-item__text">右上角“音乐 关”可以开启。每点亮一朵玫瑰，会响一个不同的音符；集齐后有一小段旋律。</p>
+                            <h3 class="guide-item__title">打开背景音乐</h3>
+                            <p class="guide-item__text">右上角“音乐”可以开启《夜的钢琴曲（五）》。钢琴声会轻轻铺在花束下面，随时可以关掉。</p>
                         </div>
                     </div>
                     <div class="guide-item">
@@ -184,6 +184,15 @@
         <div class="fallback" hidden>
             <p>这场玫瑰需要支持 WebGL 的浏览器。</p>
         </div>
+
+        <audio
+            id="background-music"
+            src="./audio/ye-de-gang-qin-qu-5.mp3"
+            loop
+            preload="auto"
+            playsinline
+            hidden
+        ></audio>
     </main>
 
     <script type="module" src="/src/main.js"></script>

@@ -108,10 +108,9 @@ let secretLetterElement;
 let secretLetterCloseButton;
 let secretLetterOpen = false;
 let musicToggleElement;
-let audioContext;
-let musicGain;
+let backgroundMusic;
+let musicFadeTimer;
 let musicEnabled = false;
-let musicTimer;
 let lightControlElement;
 let lightOrbElement;
 let lightDragging = false;
@@ -1162,7 +1161,6 @@ function handleRoseClick(index) {
 
     if (isNew) {
         updateRoseProgress();
-        playRoseNote(index);
     }
 
     if (isGolden && !roseState.goldenFound) {
@@ -1170,7 +1168,6 @@ function handleRoseClick(index) {
         if (goldenMarker) {
             goldenMarker.visible = false;
         }
-        playSecretChime();
         setTimeout(() => {
             if (!secretLetterOpen && state.mode === 'open' && roseState.goldenFound) {
                 openSecretLetter();
@@ -1215,7 +1212,6 @@ function completeRoseHunt() {
         showLetterPrompt(true);
     }
     spawnRoseBurst(0, true);
-    playCompletionMelody();
 }
 
 /**
@@ -1231,7 +1227,6 @@ function openSecretLetter() {
     if (secretLetterCloseButton) {
         secretLetterCloseButton.focus({ preventScroll: true });
     }
-    playSecretChime();
 }
 
 /**
@@ -1483,168 +1478,71 @@ function setLightDirection(azimuth, elevation) {
 }
 
 /**
- * 创建并启动音乐盒
- * @returns {AudioContext|null} 音频上下文
+ * 更新音乐开关文案
  */
-function ensureAudioContext() {
-    if (audioContext) {
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
+function updateMusicButton() {
+    if (!musicToggleElement) {
+        return;
+    }
+    musicToggleElement.textContent = musicEnabled ? '音乐 开' : '音乐 关';
+    musicToggleElement.setAttribute('aria-pressed', String(musicEnabled));
+}
+
+/**
+ * 淡入或淡出背景音乐
+ * @param {number} target 目标音量
+ * @param {number} duration 时长（毫秒）
+ * @param {Function} onDone 完成回调
+ */
+function fadeMusicVolume(target, duration, onDone) {
+    if (!backgroundMusic) {
+        return;
+    }
+    clearInterval(musicFadeTimer);
+    const startVolume = backgroundMusic.volume;
+    const startedAt = performance.now();
+    musicFadeTimer = setInterval(() => {
+        const progress = Math.min(1, (performance.now() - startedAt) / duration);
+        const volume = startVolume + (target - startVolume) * progress;
+        backgroundMusic.volume = Math.max(0, Math.min(1, volume));
+        if (progress >= 1) {
+            clearInterval(musicFadeTimer);
+            musicFadeTimer = null;
+            if (onDone) {
+                onDone();
+            }
         }
-        return audioContext;
-    }
-
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) {
-        return null;
-    }
-
-    audioContext = new AudioContextClass();
-    musicGain = audioContext.createGain();
-    musicGain.gain.value = 0.0001;
-
-    const filter = audioContext.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 3600;
-    filter.Q.value = 0.3;
-
-    const delay = audioContext.createDelay(1);
-    delay.delayTime.value = 0.26;
-    const feedback = audioContext.createGain();
-    feedback.gain.value = 0.18;
-
-    musicGain.connect(filter);
-    filter.connect(audioContext.destination);
-    filter.connect(delay);
-    delay.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(audioContext.destination);
-
-    return audioContext;
+    }, 40);
 }
 
 /**
- * 播放一个柔和的风铃音
- * @param {number} frequency 频率
- * @param {number} duration 时长
- * @param {number} volume 音量
- */
-function playChime(frequency, duration = 1.5, volume = 0.05) {
-    if (!musicEnabled || !audioContext || !musicGain || document.hidden) {
-        return;
-    }
-    const now = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator();
-    const overtone = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    const overtoneGain = audioContext.createGain();
-
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = frequency;
-    overtone.type = 'sine';
-    overtone.frequency.value = frequency * 2.01;
-    overtoneGain.gain.value = 0.16;
-
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.018);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    oscillator.connect(gain);
-    overtone.connect(overtoneGain);
-    overtoneGain.connect(gain);
-    gain.connect(musicGain);
-
-    oscillator.start(now);
-    overtone.start(now);
-    oscillator.stop(now + duration + 0.06);
-    overtone.stop(now + duration + 0.06);
-}
-
-const ROSE_NOTES = [
-    261.63, 293.66, 329.63, 392.00, 440.00,
-    523.25, 587.33, 659.25, 783.99, 880.00,
-    1046.50, 1174.66, 1318.51, 1567.98, 1760.00,
-    2093.00, 2349.32, 2637.02, 3135.96
-];
-
-/**
- * 玫瑰被点击时的音符
- * @param {number} index 玫瑰索引
- */
-function playRoseNote(index) {
-    if (!musicEnabled) {
-        return;
-    }
-    ensureAudioContext();
-    playChime(ROSE_NOTES[index % ROSE_NOTES.length], 1.15, 0.045);
-}
-
-/**
- * 金色玫瑰的隐藏音效
- */
-function playSecretChime() {
-    if (!musicEnabled) {
-        return;
-    }
-    ensureAudioContext();
-    playChime(659.25, 1.8, 0.055);
-    setTimeout(() => playChime(987.77, 2.0, 0.035), 180);
-}
-
-/**
- * 十九朵全部找到后的短旋律
- */
-function playCompletionMelody() {
-    if (!musicEnabled) {
-        return;
-    }
-    ensureAudioContext();
-    [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((note, index) => {
-        setTimeout(() => playChime(note, 1.5, 0.04), index * 170);
-    });
-}
-
-/**
- * 开启或关闭音乐盒
+ * 开启或关闭背景音乐
  */
 function toggleMusic() {
-    const context = ensureAudioContext();
-    if (!context) {
-        if (musicToggleElement) {
-            musicToggleElement.textContent = '音乐不可用';
-            musicToggleElement.disabled = true;
-        }
+    if (!backgroundMusic) {
         return;
     }
 
-    musicEnabled = !musicEnabled;
-    if (musicToggleElement) {
-        musicToggleElement.textContent = musicEnabled ? '音乐 开' : '音乐 关';
-        musicToggleElement.setAttribute('aria-pressed', String(musicEnabled));
-    }
-
-    if (musicEnabled) {
-        clearInterval(musicTimer);
-        const now = context.currentTime;
-        musicGain.gain.cancelScheduledValues(now);
-        musicGain.gain.setValueAtTime(Math.max(0.0001, musicGain.gain.value), now);
-        musicGain.gain.linearRampToValueAtTime(0.72, now + 1.2);
-        let step = 0;
-        musicTimer = setInterval(() => {
-            if (!musicEnabled) {
-                return;
-            }
-            const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 783.99];
-            playChime(melody[step % melody.length], 2.1, 0.02);
-            step += 1;
-        }, 2100);
-        playChime(523.25, 2.4, 0.035);
+    if (!musicEnabled) {
+        musicEnabled = true;
+        updateMusicButton();
+        backgroundMusic.volume = 0;
+        const playPromise = backgroundMusic.play();
+        if (playPromise && playPromise.catch) {
+            playPromise.catch(() => {
+                musicEnabled = false;
+                updateMusicButton();
+            });
+        }
+        fadeMusicVolume(0.34, 1800);
     } else {
-        clearInterval(musicTimer);
-        const now = context.currentTime;
-        musicGain.gain.cancelScheduledValues(now);
-        musicGain.gain.setValueAtTime(Math.max(0.0001, musicGain.gain.value), now);
-        musicGain.gain.linearRampToValueAtTime(0.0001, now + 0.5);
+        musicEnabled = false;
+        updateMusicButton();
+        fadeMusicVolume(0, 650, () => {
+            if (!musicEnabled) {
+                backgroundMusic.pause();
+            }
+        });
     }
 }
 
@@ -1670,10 +1568,6 @@ function openCase() {
     setInterfaceMode('opening');
     spawnLoveRibbons();
     scheduleOpenOverlays();
-    if (musicEnabled) {
-        ensureAudioContext();
-        playChime(392, 2.0, 0.035);
-    }
 }
 
 /**
@@ -2028,13 +1922,16 @@ function bindInteraction() {
     }
 
     document.addEventListener('visibilitychange', () => {
-        if (!audioContext) {
+        if (!backgroundMusic) {
             return;
         }
         if (document.hidden) {
-            audioContext.suspend();
+            backgroundMusic.pause();
         } else if (musicEnabled) {
-            audioContext.resume();
+            const playPromise = backgroundMusic.play();
+            if (playPromise && playPromise.catch) {
+                playPromise.catch(() => {});
+            }
         }
     });
 
@@ -2298,6 +2195,19 @@ async function boot() {
     secretLetterElement = document.getElementById('secret-letter');
     secretLetterCloseButton = document.getElementById('secret-letter-close');
     musicToggleElement = document.getElementById('music-toggle');
+    backgroundMusic = document.getElementById('background-music');
+    if (backgroundMusic) {
+        backgroundMusic.volume = 0;
+        backgroundMusic.addEventListener('error', () => {
+            musicEnabled = false;
+            updateMusicButton();
+            if (musicToggleElement) {
+                musicToggleElement.textContent = '音乐不可用';
+                musicToggleElement.disabled = true;
+            }
+        });
+    }
+    updateMusicButton();
     lightControlElement = document.getElementById('light-control');
     lightOrbElement = lightControlElement
         ? lightControlElement.querySelector('.light-control__orb')
