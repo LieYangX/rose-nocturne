@@ -143,9 +143,11 @@ function petalNormal(surface, u, v, basePoint) {
  * @param {number} v 横向参数
  * @param {number} fraction 花瓣由内到外的位置
  * @param {number} petalTint 单片花瓣的色差
+ * @param {number} headTint 整朵花的明度差
+ * @param {number} headWarmth 整朵花的冷暖差
  * @returns {THREE.Color} 点颜色
  */
-function petalColor(point, u, v, fraction, petalTint) {
+function petalColor(point, u, v, fraction, petalTint, headTint = 1, headWarmth = 0) {
     const radial = clamp(Math.hypot(point.x, point.z) / 0.48, 0, 1);
     const height = clamp(point.y / 0.46, 0, 1);
     const edge = smoothstep(0.68, 1, radial);
@@ -155,7 +157,12 @@ function petalColor(point, u, v, fraction, petalTint) {
     color.lerp(COLORS.roseEdge, Math.pow(edge, 2.2) * 0.36);
     color.multiplyScalar(0.6 + height * 0.5 + radial * 0.08);
     color.multiplyScalar(0.7 + smoothstep(0.06, 0.42, u) * 0.3);
-    color.multiplyScalar(petalTint);
+    color.multiplyScalar(petalTint * headTint);
+    if (headWarmth > 0) {
+        color.lerp(COLORS.roseEdge, headWarmth * 0.08);
+    } else if (headWarmth < 0) {
+        color.lerp(COLORS.roseDeep, -headWarmth * 0.1);
+    }
     return color;
 }
 
@@ -178,6 +185,8 @@ function emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, rand
     const rowCount = Math.max(6, Math.round((8 + layerPosition * 3) * quality * density));
     const cellCount = Math.max(5, Math.round((6 + layerPosition * 3) * quality * density));
     const petalTint = options.tint ?? (0.94 + random() * 0.08);
+    const headTint = options.headTint ?? 1;
+    const headWarmth = options.headWarmth ?? 0;
     const petalSize = options.size ?? (0.0115 + layerPosition * 0.003);
     const dewChance = options.dewChance ?? 0.0045;
 
@@ -195,7 +204,7 @@ function emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, rand
             const normal = petalNormal(surface, u, v, point);
             point.addScaledVector(normal, (random() - 0.5) * 0.003);
 
-            const color = petalColor(point, u, v, fraction, petalTint);
+            const color = petalColor(point, u, v, fraction, petalTint, headTint, headWarmth);
             if (options.shadow) {
                 color.multiplyScalar(options.shadow);
             }
@@ -272,7 +281,7 @@ function emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, rand
  * @param {() => number} random 随机函数
  * @param {number} quality 画质系数
  */
-function addSpiralRose(solids, glow, head, random, quality) {
+function addSpiralRose(solids, glow, head, random, quality, headTint = 1, headWarmth = 0) {
     const matrix = new THREE.Matrix4().compose(
         head.position,
         head.quaternion,
@@ -324,7 +333,17 @@ function addSpiralRose(solids, glow, head, random, quality) {
             phase: random() * Math.PI * 2,
             tipCurl: (0.35 - fraction) * 0.035
         };
-        emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, random, quality);
+        emitRosePetal(
+            solids,
+            glow,
+            matrix,
+            normalMatrix,
+            petal,
+            fraction,
+            random,
+            quality,
+            { headTint, headWarmth }
+        );
     }
 
     // 在主体螺旋之外增加两层舒展的外瓣，让花头从侧面看更像玫瑰
@@ -401,6 +420,8 @@ function addSpiralRose(solids, glow, head, random, quality) {
                     tint: layer.tint,
                     size: layer.size,
                     rimCount: 0,
+                    headTint,
+                    headWarmth,
                     density: layerIndex === 0 ? 0.72 : 0.68,
                     shadow: layerIndex === 0 ? 0.9 : 0.84
                 }
@@ -434,6 +455,12 @@ function addSpiralRose(solids, glow, head, random, quality) {
                 const point = surface(u, v);
                 const normal = petalNormal(surface, u, v, point);
                 const color = COLORS.roseMid.clone().lerp(COLORS.roseRed, 0.35);
+                color.multiplyScalar(headTint);
+                if (headWarmth > 0) {
+                    color.lerp(COLORS.roseEdge, headWarmth * 0.06);
+                } else if (headWarmth < 0) {
+                    color.lerp(COLORS.roseDeep, -headWarmth * 0.08);
+                }
                 solids.addTransformed(
                     point,
                     normal,
@@ -1016,8 +1043,19 @@ export function createBouquetGeometry({ quality = 1, seed = 20261020, singleRose
         addPaper(solids, glow, random, quality);
         addRibbon(solids, random, quality);
         addLeaves(solids, glow, random, quality);
-        for (const head of layout) {
-            addSpiralRose(solids, glow, head, random, quality);
+        for (let index = 0; index < layout.length; index += 1) {
+            // 每朵花轻微不同的明度与冷暖，帮助花头在粒子云里分开
+            const headTint = 0.93 + ((index * 7) % 11) * 0.012;
+            const headWarmth = (((index * 5) % 9) - 4) / 18;
+            addSpiralRose(
+                solids,
+                glow,
+                layout[index],
+                random,
+                quality,
+                headTint,
+                headWarmth
+            );
         }
     }
 

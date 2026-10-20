@@ -1296,6 +1296,105 @@ body.is-open .guide-toggle {
     letter-spacing: 0.26em;
 }
 
+.moment-line {
+    position: absolute;
+    z-index: 7;
+    top: 24%;
+    left: 50%;
+    display: flex;
+    width: min(84vw, 560px);
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 8px);
+    transition: opacity 0.9s var(--ease-soft), transform 0.9s var(--ease-soft);
+}
+
+.moment-line.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.moment-line.is-strong {
+    top: 38%;
+}
+
+.moment-line__rule {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(216, 189, 145, 0.46));
+}
+
+.moment-line__rule:last-child {
+    background: linear-gradient(90deg, rgba(216, 189, 145, 0.46), transparent);
+}
+
+.moment-line__text {
+    margin: 0;
+    color: rgba(242, 223, 192, 0.78);
+    font-family: var(--serif);
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    line-height: 1.8;
+    text-align: center;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+}
+
+.moment-line.is-strong .moment-line__text {
+    color: rgba(250, 231, 201, 0.92);
+    font-size: clamp(21px, 2.3vw, 29px);
+    letter-spacing: 0.26em;
+    text-shadow:
+        0 2px 22px rgba(0, 0, 0, 0.9),
+        0 0 36px rgba(232, 197, 140, 0.16);
+}
+
+.moment-line:not(.is-strong) .moment-line__rule {
+    display: none;
+}
+
+.moment-line:not(.is-strong) .moment-line__text {
+    padding: 8px 15px;
+    border: 1px solid rgba(216, 189, 145, 0.2);
+    border-radius: 999px;
+    background: rgba(8, 5, 6, 0.66);
+    color: rgba(244, 226, 203, 0.92);
+    font-size: 12px;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+}
+
+.finale-petals {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.finale-petal {
+    position: absolute;
+    width: 10px;
+    height: 6px;
+    border-radius: 70% 30% 60% 40%;
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+.finale-petal.is-rose {
+    background: linear-gradient(135deg, #e68a97, #9e2038 72%);
+    box-shadow: 0 0 10px rgba(216, 110, 126, 0.36);
+}
+
+.finale-petal.is-gold {
+    background: linear-gradient(135deg, #f6ddb2, #b78042 75%);
+    box-shadow: 0 0 10px rgba(232, 197, 140, 0.4);
+}
+
 .veil {
     position: absolute;
     z-index: 50;
@@ -1448,6 +1547,26 @@ body.is-open .guide-toggle {
         padding: 8px 12px;
         font-size: 11px;
         line-height: 1.6;
+    }
+
+    .moment-line {
+        top: 27%;
+        width: 88vw;
+        gap: 8px;
+    }
+
+    .moment-line.is-strong {
+        top: 37%;
+    }
+
+    .moment-line__text {
+        font-size: 10px;
+        letter-spacing: 0.14em;
+    }
+
+    .moment-line.is-strong .moment-line__text {
+        font-size: 19px;
+        letter-spacing: 0.18em;
     }
 
     .secret-letter {

@@ -94,15 +94,24 @@ let roseCountElement;
 let roseBarElement;
 let roseNoteElement;
 let roseNoteTimer;
+let momentLineElement;
+let momentLineTextElement;
+let momentLineTimer;
+let finalePetalLayer;
+let finalePromptTimer;
+let goldenHintUntil = 0;
 let goldenMarker;
 let goldenMarkerMaterial;
 let roseMarkSprites = [];
 let roseMarkTexture;
+let roseRippleTexture;
+let roseRipples = [];
 let roseMessageDeck = [];
 let roseState = {
     discovered: new Set(),
     goldenIndex: -1,
     goldenFound: false,
+    goldenHintTriggered: false,
     allFound: false,
     messages: []
 };
@@ -938,6 +947,7 @@ function positionGoldenMarker() {
     roseHeadLocalCenter(head, goldenMarker.position);
     const scale = 1.0 * head.scale;
     goldenMarker.scale.set(scale, scale, 1);
+    goldenMarker.userData.baseScale = scale;
     goldenMarker.visible = true;
     goldenMarkerMaterial.opacity = 0.38;
 }
@@ -958,6 +968,29 @@ function createRoseMarkTexture() {
     gradient.addColorStop(1, 'rgba(120, 60, 20, 0)');
     context.fillStyle = gradient;
     context.fillRect(0, 0, 128, 128);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
+
+/**
+ * 创建点击波纹用的柔和圆环贴图
+ * @returns {THREE.CanvasTexture} 环形贴图
+ */
+function createRoseRippleTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+    context.translate(128, 128);
+    context.strokeStyle = 'rgba(255, 244, 216, 0.88)';
+    context.lineWidth = 3;
+    context.shadowColor = 'rgba(255, 220, 160, 0.8)';
+    context.shadowBlur = 10;
+    context.beginPath();
+    context.arc(0, 0, 104, 0, Math.PI * 2);
+    context.stroke();
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -987,8 +1020,121 @@ function buildRoseHalos() {
         const scale = 0.14 * head.scale;
         sprite.scale.set(scale, scale, 1);
         sprite.renderOrder = 12;
+        sprite.userData.baseScale = scale;
+        sprite.userData.pulseStart = -1;
         bouquetGroup.add(sprite);
         roseMarkSprites.push(sprite);
+    }
+
+    roseRippleTexture = createRoseRippleTexture();
+    roseRipples = [];
+    for (let index = 0; index < 4; index += 1) {
+        const material = new THREE.SpriteMaterial({
+            map: roseRippleTexture,
+            color: 0xffd79a,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.renderOrder = 13;
+        sprite.visible = false;
+        bouquetGroup.add(sprite);
+        roseRipples.push({
+            sprite,
+            active: false,
+            start: 0,
+            baseScale: 1
+        });
+    }
+}
+
+/**
+ * 让一朵玫瑰的金色光点脉冲一次
+ * @param {number} index 玫瑰索引
+ * @param {number} delay 延迟秒数
+ * @param {number} strength 强度
+ */
+function pulseRoseMark(index, delay = 0, strength = 1) {
+    const sprite = roseMarkSprites[index];
+    if (!sprite) {
+        return;
+    }
+    sprite.userData.pulseStart = performance.now() / 1000 + delay;
+    sprite.userData.pulseStrength = strength;
+}
+
+/**
+ * 在玫瑰位置扩散一圈只出现一次的点击波纹
+ * @param {number} index 玫瑰索引
+ * @param {boolean} repeat 是否为重复点击
+ * @param {number} delay 延迟秒数
+ */
+function spawnRoseRipple(index, repeat = false, delay = 0) {
+    const sprite = roseMarkSprites[index];
+    if (!sprite || roseRipples.length === 0) {
+        return;
+    }
+    const slot = roseRipples.find((item) => !item.active)
+        || roseRipples.reduce((oldest, item) => (item.start < oldest.start ? item : oldest));
+    slot.active = true;
+    slot.start = performance.now() / 1000 + delay;
+    slot.baseScale = bouquetLayout[index] ? bouquetLayout[index].scale : 1;
+    slot.sprite.position.copy(sprite.position);
+    slot.sprite.scale.set(0.3, 0.3, 1);
+    slot.sprite.material.color.set(repeat ? 0xc98f86 : 0xffe1ab);
+    slot.sprite.material.opacity = 0;
+    slot.sprite.visible = true;
+}
+
+/**
+ * 每帧更新点中光点脉冲与波纹
+ * @param {number} now 当前秒数
+ */
+function updateRoseFeedback(now) {
+    for (const sprite of roseMarkSprites) {
+        const start = sprite.userData.pulseStart;
+        if (start === undefined || start < 0) {
+            continue;
+        }
+        const progress = (now - start) / 0.62;
+        if (progress < 0) {
+            continue;
+        }
+        if (progress >= 1) {
+            const base = sprite.userData.baseScale;
+            sprite.scale.set(base, base, 1);
+            sprite.material.opacity = 0.9;
+            sprite.userData.pulseStart = -1;
+            continue;
+        }
+        const bump = Math.sin(Math.PI * progress);
+        const strength = sprite.userData.pulseStrength || 1;
+        const base = sprite.userData.baseScale;
+        const scale = base * (1 + bump * 0.58 * strength);
+        sprite.scale.set(scale, scale, 1);
+        sprite.material.opacity = Math.min(1, 0.9 + bump * 0.1);
+    }
+
+    for (const ripple of roseRipples) {
+        if (!ripple.active) {
+            continue;
+        }
+        const progress = (now - ripple.start) / 0.78;
+        if (progress < 0) {
+            continue;
+        }
+        if (progress >= 1) {
+            ripple.active = false;
+            ripple.sprite.visible = false;
+            ripple.sprite.material.opacity = 0;
+            continue;
+        }
+        const scale = (0.3 + progress * 1.15) * ripple.baseScale;
+        ripple.sprite.scale.set(scale, scale, 1);
+        ripple.sprite.material.opacity = 0.65 * Math.pow(1 - progress, 1.4);
     }
 }
 
@@ -998,6 +1144,14 @@ function buildRoseHalos() {
 function resetRoseHalos() {
     for (const sprite of roseMarkSprites) {
         sprite.material.opacity = 0;
+        const base = sprite.userData.baseScale;
+        sprite.scale.set(base, base, 1);
+        sprite.userData.pulseStart = -1;
+    }
+    for (const ripple of roseRipples) {
+        ripple.active = false;
+        ripple.sprite.visible = false;
+        ripple.sprite.material.opacity = 0;
     }
 }
 
@@ -1021,8 +1175,13 @@ function resetRoseHunt() {
     roseState.discovered.clear();
     roseState.goldenIndex = Math.floor(Math.random() * bouquetLayout.length);
     roseState.goldenFound = false;
+    roseState.goldenHintTriggered = false;
     roseState.allFound = false;
+    goldenHintUntil = 0;
     roseState.messages = drawRoseMessages(bouquetLayout.length);
+    hideMomentLine();
+    clearTimeout(finalePromptTimer);
+    clearFinalePetals();
 
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible', 'is-golden');
@@ -1049,6 +1208,10 @@ function resetRoseHunt() {
  */
 function hideRoseHuntUI() {
     clearTimeout(roseNoteTimer);
+    clearTimeout(finalePromptTimer);
+    hideMomentLine();
+    clearFinalePetals();
+    goldenHintUntil = 0;
     resetRoseHalos();
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible', 'is-golden');
@@ -1204,6 +1367,122 @@ function showRoseNote(index, message, golden = false, repeat = false) {
 }
 
 /**
+ * 显示一句短暂出现的画面文案
+ * @param {string} text 文案
+ * @param {number} duration 停留时长（毫秒）
+ * @param {boolean} strong 是否使用终章大字号
+ */
+function showMomentLine(text, duration = 3000, strong = false) {
+    if (!momentLineElement) {
+        return;
+    }
+    clearTimeout(momentLineTimer);
+    if (momentLineTextElement) {
+        momentLineTextElement.textContent = text;
+    }
+    momentLineElement.classList.toggle('is-strong', strong);
+    momentLineElement.classList.add('is-visible');
+    momentLineElement.setAttribute('aria-hidden', 'false');
+    momentLineTimer = setTimeout(hideMomentLine, duration);
+}
+
+/**
+ * 隐藏画面文案
+ */
+function hideMomentLine() {
+    clearTimeout(momentLineTimer);
+    if (!momentLineElement) {
+        return;
+    }
+    momentLineElement.classList.remove('is-visible', 'is-strong');
+    momentLineElement.setAttribute('aria-hidden', 'true');
+}
+
+/**
+ * 清空终章花瓣
+ */
+function clearFinalePetals() {
+    if (finalePetalLayer) {
+        finalePetalLayer.replaceChildren();
+    }
+}
+
+/**
+ * 让一层花瓣从花束里向上飘起
+ */
+function spawnFinalePetals() {
+    if (!finalePetalLayer || reduceMotion) {
+        return;
+    }
+    clearFinalePetals();
+    const count = 46;
+    for (let index = 0; index < count; index += 1) {
+        const petal = document.createElement('span');
+        petal.className = `finale-petal ${index % 4 === 0 ? 'is-gold' : 'is-rose'}`;
+        const size = 9 + Math.random() * 9;
+        petal.style.width = `${size}px`;
+        petal.style.height = `${size * 0.58}px`;
+        petal.style.left = `${window.innerWidth * (0.22 + Math.random() * 0.56)}px`;
+        petal.style.top = `${window.innerHeight * (0.38 + Math.random() * 0.18)}px`;
+        finalePetalLayer.appendChild(petal);
+
+        const driftX = (Math.random() - 0.5) * 260;
+        const rise = -(220 + Math.random() * 300);
+        const rotation = (Math.random() * 2 - 1) * 170;
+        const animation = petal.animate([
+            {
+                opacity: 0,
+                transform: 'translate(-50%, -50%) scale(0.55) rotate(0deg)'
+            },
+            {
+                opacity: 0.95,
+                offset: 0.2,
+                transform: 'translate(-50%, -50%) scale(1) rotate(30deg)'
+            },
+            {
+                opacity: 0,
+                transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${rise}px)) rotate(${rotation}deg) scale(0.72)`
+            }
+        ], {
+            duration: 2500 + Math.random() * 1500,
+            easing: 'cubic-bezier(0.16, 0.68, 0.3, 1)',
+            fill: 'both'
+        });
+        animation.onfinish = () => petal.remove();
+    }
+}
+
+/**
+ * 十九朵集齐后的终章动画
+ */
+function runFinale() {
+    clearTimeout(finalePromptTimer);
+    showMomentLine('十九朵，都听见了。', 2800, true);
+    spawnFinalePetals();
+    roseMarkSprites.forEach((sprite, index) => {
+        pulseRoseMark(index, index * 0.025, 1.25);
+    });
+    spawnRoseBurst(0, true);
+    finalePromptTimer = setTimeout(() => {
+        if (!document.body.classList.contains('is-letter') && roseState.allFound) {
+            showLetterPrompt(true);
+        }
+    }, 3000);
+}
+
+/**
+ * 听到十二朵后，给金色玫瑰一次很轻的提示
+ */
+function triggerGoldenHint() {
+    if (roseState.goldenHintTriggered || roseState.goldenFound || roseState.allFound) {
+        return;
+    }
+    roseState.goldenHintTriggered = true;
+    goldenHintUntil = performance.now() / 1000 + 3.4;
+    showMomentLine('还有一朵，一直在等你。', 4000, false);
+}
+
+/**
  * 更新寻花进度
  */
 function updateRoseProgress() {
@@ -1238,12 +1517,16 @@ function handleRoseClick(index) {
 
     if (!isNew) {
         spawnRoseBurst(index, false);
+        pulseRoseMark(index, 0, 0.7);
+        spawnRoseRipple(index, true);
         showRoseNote(index, '这朵已经听过了，换一朵还没听过的吧。', false, true);
         return;
     }
 
     roseState.discovered.add(index);
     markRoseHalo(index);
+    pulseRoseMark(index, 0, 1);
+    spawnRoseRipple(index, false);
     hideDragHint();
 
     spawnRoseBurst(index, isGolden);
@@ -1251,6 +1534,8 @@ function handleRoseClick(index) {
 
     if (isGolden && !roseState.goldenFound) {
         roseState.goldenFound = true;
+        hideMomentLine();
+        goldenHintUntil = 0;
         if (goldenMarker) {
             goldenMarker.visible = false;
         }
@@ -1263,6 +1548,10 @@ function handleRoseClick(index) {
 
     updateRoseProgress();
 
+    if (roseState.discovered.size >= 12 && !roseState.goldenFound && !roseState.allFound) {
+        triggerGoldenHint();
+    }
+
     if (roseState.discovered.size === bouquetLayout.length && !roseState.allFound) {
         completeRoseHunt();
     }
@@ -1274,6 +1563,8 @@ function handleRoseClick(index) {
 function completeRoseHunt() {
     roseState.allFound = true;
     clearTimeout(roseNoteTimer);
+    clearTimeout(letterTimer);
+    hideLetterPrompt();
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible');
     }
@@ -1296,10 +1587,12 @@ function completeRoseHunt() {
     }
     if (document.body.classList.contains('is-letter')) {
         showLoveLetter();
+        roseMarkSprites.forEach((sprite, index) => {
+            pulseRoseMark(index, index * 0.02, 1.15);
+        });
     } else {
-        showLetterPrompt(true);
+        runFinale();
     }
-    spawnRoseBurst(0, true);
 }
 
 /**
@@ -1403,6 +1696,9 @@ function showLoveLetter() {
     }
     clearTimeout(letterTimer);
     hideLetterPrompt();
+    hideMomentLine();
+    clearFinalePetals();
+    clearTimeout(finalePromptTimer);
     clearTimeout(roseNoteTimer);
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible');
@@ -2209,8 +2505,19 @@ function updateScene() {
         }
     }
 
+    updateRoseFeedback(now);
+
     if (goldenMarker && goldenMarker.visible && goldenMarkerMaterial) {
-        goldenMarkerMaterial.opacity = 0.3 + Math.sin(elapsed * 1.5) * 0.09;
+        const baseScale = goldenMarker.userData.baseScale || 1;
+        if (now < goldenHintUntil) {
+            const hintPulse = Math.sin(elapsed * 5);
+            goldenMarkerMaterial.opacity = 0.58 + hintPulse * 0.24;
+            const hintScale = baseScale * (1.18 + hintPulse * 0.06);
+            goldenMarker.scale.set(hintScale, hintScale, 1);
+        } else {
+            goldenMarkerMaterial.opacity = 0.3 + Math.sin(elapsed * 1.5) * 0.09;
+            goldenMarker.scale.set(baseScale, baseScale, 1);
+        }
     }
 
     const targetDistance = fitDistance * (1 + openEase * (isMobile ? 0 : 0.06));
@@ -2320,6 +2627,9 @@ async function boot() {
     roseCountElement = document.getElementById('rose-count');
     roseBarElement = document.getElementById('rose-bar');
     roseNoteElement = document.getElementById('rose-note');
+    momentLineElement = document.getElementById('moment-line');
+    momentLineTextElement = document.getElementById('moment-line-text');
+    finalePetalLayer = document.getElementById('finale-petals');
     secretLetterElement = document.getElementById('secret-letter');
     secretLetterCloseButton = document.getElementById('secret-letter-close');
     musicToggleElement = document.getElementById('music-toggle');
@@ -2382,6 +2692,8 @@ async function boot() {
             motesMaterial,
             stageLights,
             roseState,
+            roseMarkSprites,
+            roseRipples,
             state,
             openCase,
             closeCase,
@@ -2391,6 +2703,8 @@ async function boot() {
             showLoveLetter,
             toggleLoveLetter,
             applyLightDirection,
+            runFinale,
+            triggerGoldenHint,
             getRoseScreenPositions: () => bouquetLayout.map((head, index) => {
                 const projected = roseHeadLocalCenter(head)
                     .applyMatrix4(bouquetGroup.matrixWorld)
