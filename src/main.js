@@ -93,19 +93,11 @@ let roseProgressElement;
 let roseCountElement;
 let roseBarElement;
 let roseNoteElement;
-let roseHoverElement;
-let roseHoverTextElement;
 let roseNoteTimer;
 let goldenMarker;
 let goldenMarkerMaterial;
 let roseMarkSprites = [];
 let roseMarkTexture;
-let roseHoverTexture;
-let roseHoverSprite;
-let roseHoverSpriteMaterial;
-let hoveredRoseIndex = -1;
-let hoverFlashTimer;
-let ignoreHoverLeaveUntil = 0;
 let roseMessageDeck = [];
 let roseState = {
     discovered: new Set(),
@@ -973,46 +965,11 @@ function createRoseMarkTexture() {
 }
 
 /**
- * 创建悬浮高亮用的珠链环贴图
- * @returns {THREE.CanvasTexture} 环形贴图
- */
-function createRoseHoverTexture() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const context = canvas.getContext('2d');
-    context.translate(128, 128);
-    context.fillStyle = 'rgba(255, 255, 255, 0.92)';
-    context.shadowColor = 'rgba(255, 226, 180, 0.9)';
-    context.shadowBlur = 5;
-
-    const dots = 52;
-    for (let index = 0; index < dots; index += 1) {
-        const angle = (index / dots) * Math.PI * 2;
-        const radius = 104 + Math.sin(index * 1.7) * 2;
-        context.beginPath();
-        context.arc(
-            Math.cos(angle) * radius,
-            Math.sin(angle) * radius,
-            2.4,
-            0,
-            Math.PI * 2
-        );
-        context.fill();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-}
-
-/**
- * 给每朵玫瑰建立一个小金色光点，并创建悬浮描边环
+ * 给每朵玫瑰建立一个小金色光点
  */
 function buildRoseHalos() {
     roseMarkSprites = [];
     roseMarkTexture = createRoseMarkTexture();
-    roseHoverTexture = createRoseHoverTexture();
 
     for (const head of bouquetLayout) {
         const material = new THREE.SpriteMaterial({
@@ -1033,20 +990,6 @@ function buildRoseHalos() {
         bouquetGroup.add(sprite);
         roseMarkSprites.push(sprite);
     }
-
-    roseHoverSpriteMaterial = new THREE.SpriteMaterial({
-        map: roseHoverTexture,
-        color: 0xffe1ab,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false
-    });
-    roseHoverSprite = new THREE.Sprite(roseHoverSpriteMaterial);
-    roseHoverSprite.renderOrder = 13;
-    roseHoverSprite.visible = false;
-    bouquetGroup.add(roseHoverSprite);
 }
 
 /**
@@ -1068,107 +1011,6 @@ function markRoseHalo(index) {
         return;
     }
     sprite.material.opacity = 0.9;
-}
-
-/**
- * 隐藏悬浮玫瑰提示
- */
-function hideRoseHover() {
-    hoveredRoseIndex = -1;
-    if (roseHoverSprite) {
-        roseHoverSprite.visible = false;
-    }
-    if (roseHoverElement) {
-        roseHoverElement.classList.remove('is-visible');
-    }
-}
-
-/**
- * 把悬浮高亮环和标签定位到指定玫瑰
- * @param {number} index 玫瑰索引
- */
-function positionRoseHover(index) {
-    const head = bouquetLayout[index];
-    const sprite = roseMarkSprites[index];
-    if (!head || !sprite || !roseHoverSprite) {
-        return;
-    }
-
-    roseHoverSprite.position.copy(sprite.position);
-    const scale = 1.18 * head.scale;
-    roseHoverSprite.scale.set(scale, scale, 1);
-    roseHoverSprite.visible = true;
-
-    const visited = roseState.discovered.has(index);
-    roseHoverSpriteMaterial.color.set(visited ? 0xc88e86 : 0xffe1ab);
-    roseHoverSpriteMaterial.opacity = visited ? 0.6 : 0.95;
-
-    roseHeadLocalCenter(head, pointerLocal);
-    pointerLocal.applyMatrix4(bouquetGroup.matrixWorld).project(camera);
-    const screenX = (pointerLocal.x * 0.5 + 0.5) * window.innerWidth;
-    const screenY = (-pointerLocal.y * 0.5 + 0.5) * window.innerHeight;
-    if (roseHoverElement) {
-        roseHoverElement.style.left = `${Math.max(64, Math.min(window.innerWidth - 64, screenX))}px`;
-        roseHoverElement.style.top = `${Math.max(110, screenY - 66)}px`;
-        roseHoverElement.classList.toggle('is-visited', visited);
-        roseHoverElement.classList.add('is-visible');
-        if (roseHoverTextElement) {
-            roseHoverTextElement.textContent = `第 ${index + 1} 朵 · ${visited ? '已听过' : '未听'}`;
-        }
-    }
-}
-
-/**
- * 触摸端点击后短暂显示描边和“第几朵”标签
- * @param {number} index 玫瑰索引
- */
-function flashRoseHover(index) {
-    if (document.body.classList.contains('has-fine-pointer')) {
-        return;
-    }
-    ignoreHoverLeaveUntil = performance.now() + 500;
-    positionRoseHover(index);
-    if (roseHoverElement) {
-        roseHoverElement.classList.remove('is-visible');
-    }
-    if (roseHoverSpriteMaterial) {
-        roseHoverSpriteMaterial.color.set(0xffe1ab);
-        roseHoverSpriteMaterial.opacity = 0.95;
-    }
-    clearTimeout(hoverFlashTimer);
-    hoverFlashTimer = setTimeout(() => {
-        hideRoseHover();
-    }, 1300);
-}
-
-/**
- * 根据鼠标位置更新玫瑰悬浮提示
- * @param {number} clientX 屏幕横坐标
- * @param {number} clientY 屏幕纵坐标
- */
-function updateRoseHover(clientX, clientY) {
-    if (
-        state.mode !== 'open'
-        || state.dragging
-        || secretLetterOpen
-        || (guideModalElement && !guideModalElement.hidden)
-        || document.body.classList.contains('is-letter')
-        || !document.body.classList.contains('has-fine-pointer')
-    ) {
-        hideRoseHover();
-        return;
-    }
-    const index = pickRoseAt(clientX, clientY);
-    if (index < 0) {
-        hideRoseHover();
-        return;
-    }
-    if (index !== hoveredRoseIndex) {
-        hoveredRoseIndex = index;
-        positionRoseHover(index);
-        return;
-    }
-    positionRoseHover(index);
 }
 
 /**
@@ -1198,7 +1040,6 @@ function resetRoseHunt() {
     }
 
     resetRoseHalos();
-    hideRoseHover();
     resetLoveLetterCard();
     positionGoldenMarker();
 }
@@ -1208,7 +1049,6 @@ function resetRoseHunt() {
  */
 function hideRoseHuntUI() {
     clearTimeout(roseNoteTimer);
-    hideRoseHover();
     resetRoseHalos();
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible', 'is-golden');
@@ -1392,7 +1232,6 @@ function handleRoseClick(index) {
         return;
     }
 
-    hideRoseHover();
     const message = roseState.messages[index] || '刘烨，这一朵花也听见你了。';
     const isNew = !roseState.discovered.has(index);
     const isGolden = index === roseState.goldenIndex;
@@ -1400,7 +1239,6 @@ function handleRoseClick(index) {
     if (!isNew) {
         spawnRoseBurst(index, false);
         showRoseNote(index, '这朵已经听过了，换一朵还没听过的吧。', false, true);
-        flashRoseHover(index);
         return;
     }
 
@@ -1410,7 +1248,6 @@ function handleRoseClick(index) {
 
     spawnRoseBurst(index, isGolden);
     showRoseNote(index, message, isGolden);
-    flashRoseHover(index);
 
     if (isGolden && !roseState.goldenFound) {
         roseState.goldenFound = true;
@@ -1437,7 +1274,6 @@ function handleRoseClick(index) {
 function completeRoseHunt() {
     roseState.allFound = true;
     clearTimeout(roseNoteTimer);
-    hideRoseHover();
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible');
     }
@@ -1476,7 +1312,6 @@ function openSecretLetter() {
     secretLetterOpen = true;
     secretLetterElement.hidden = false;
     document.body.classList.add('is-secret');
-    hideRoseHover();
     if (secretLetterCloseButton) {
         secretLetterCloseButton.focus({ preventScroll: true });
     }
@@ -1509,7 +1344,6 @@ function openGuide() {
     }
     guideModalElement.hidden = false;
     document.body.classList.add('is-guide');
-    hideRoseHover();
     if (guideToggleElement) {
         guideToggleElement.classList.add('is-seen');
     }
@@ -1570,7 +1404,6 @@ function showLoveLetter() {
     clearTimeout(letterTimer);
     hideLetterPrompt();
     clearTimeout(roseNoteTimer);
-    hideRoseHover();
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible');
     }
@@ -2014,7 +1847,6 @@ function bindInteraction() {
 
     canvas.addEventListener('pointermove', (event) => {
         if (state.mode === 'open') {
-            updateRoseHover(event.clientX, event.clientY);
             updateRosePointerInfluence(event.clientX, event.clientY);
             spawnFingerPetals(event.clientX, event.clientY);
         }
@@ -2032,7 +1864,6 @@ function bindInteraction() {
             state.hasDragged = true;
             state.lastPointerX = event.clientX;
             hideDragHint();
-            hideRoseHover();
             if (roseNoteElement) {
                 roseNoteElement.classList.remove('is-visible');
             }
@@ -2069,9 +1900,6 @@ function bindInteraction() {
     canvas.addEventListener('pointerup', (event) => endPointer(event, false));
     canvas.addEventListener('pointercancel', (event) => endPointer(event, true));
     canvas.addEventListener('pointerleave', () => {
-        if (performance.now() >= ignoreHoverLeaveUntil) {
-            hideRoseHover();
-        }
         if (bouquetMaterials) {
             bouquetMaterials.solidMaterial.uniforms.uPointerStrength.value = 0;
             bouquetMaterials.glowMaterial.uniforms.uPointerStrength.value = 0;
@@ -2492,8 +2320,6 @@ async function boot() {
     roseCountElement = document.getElementById('rose-count');
     roseBarElement = document.getElementById('rose-bar');
     roseNoteElement = document.getElementById('rose-note');
-    roseHoverElement = document.getElementById('rose-hover');
-    roseHoverTextElement = document.getElementById('rose-hover-text');
     secretLetterElement = document.getElementById('secret-letter');
     secretLetterCloseButton = document.getElementById('secret-letter-close');
     musicToggleElement = document.getElementById('music-toggle');

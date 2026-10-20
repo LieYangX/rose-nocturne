@@ -1287,35 +1287,6 @@ body.is-open .guide-toggle {
     background: linear-gradient(90deg, rgba(28, 11, 14, 0.92), rgba(10, 7, 9, 0.78));
 }
 
-.rose-hover {
-    position: absolute;
-    z-index: 6;
-    padding: 4px 9px;
-    border: 1px solid rgba(216, 189, 145, 0.22);
-    border-radius: 999px;
-    background: rgba(8, 5, 6, 0.72);
-    color: rgba(242, 223, 192, 0.68);
-    font-family: var(--serif);
-    font-size: 8.5px;
-    font-weight: 300;
-    letter-spacing: 0.16em;
-    line-height: 1;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transform: translate(-50%, -100%) translateY(-4px);
-    transition: opacity 0.2s var(--ease-soft), border-color 0.3s var(--ease-soft);
-}
-
-.rose-hover.is-visible {
-    opacity: 1;
-}
-
-.rose-hover.is-visited {
-    border-color: rgba(196, 137, 132, 0.28);
-    color: rgba(220, 170, 158, 0.62);
-}
-
 .rose-note__index {
     display: block;
     margin-bottom: 4px;
