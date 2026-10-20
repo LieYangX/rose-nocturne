@@ -1776,18 +1776,28 @@ function startTypewriter() {
     }
 
     const letter = LETTER_CONTENT.loveLetter.back;
+    const backFace = loveLetterBackElement.closest('.love-letter__body');
+    const typeDelay = letter.length > 180 ? 24 : 38;
 
     typewriterIndex = 0;
     loveLetterBackElement.textContent = '';
     loveLetterBackElement.classList.remove('is-complete');
+    if (backFace) {
+        backFace.scrollTop = 0;
+    }
     typewriterTimer = setInterval(() => {
         typewriterIndex += 1;
+        const atBottom = !backFace
+            || backFace.scrollHeight - backFace.scrollTop - backFace.clientHeight < 48;
         loveLetterBackElement.textContent = letter.slice(0, typewriterIndex);
+        if (backFace && atBottom) {
+            backFace.scrollTop = backFace.scrollHeight;
+        }
         if (typewriterIndex >= letter.length) {
             stopTypewriter();
             loveLetterBackElement.classList.add('is-complete');
         }
-    }, 38);
+    }, typeDelay);
 }
 
 /**
