@@ -127,6 +127,12 @@ let loveLetterTextElement;
 let loveLetterBackElement;
 let loveLetterEyebrowElement;
 let loveLetterDailyElement;
+let loveLetterCloseButton;
+let letterToggleElement;
+let letterToggleTextElement;
+let guideToggleElement;
+let guideModalElement;
+let guideCloseButton;
 let typewriterTimer;
 let typewriterIndex = 0;
 let lastFingerPetalTime = 0;
@@ -694,7 +700,7 @@ function scheduleOpenOverlays() {
         if (state.mode !== 'open') {
             return;
         }
-        showLoveLetter();
+        showLetterPrompt(false);
     }, reduceMotion ? 5600 : 8200);
 }
 
@@ -1182,6 +1188,10 @@ function handleRoseClick(index) {
  */
 function completeRoseHunt() {
     roseState.allFound = true;
+    clearTimeout(roseNoteTimer);
+    if (roseNoteElement) {
+        roseNoteElement.classList.remove('is-visible');
+    }
     stopTypewriter();
     if (loveLetterElement) {
         loveLetterElement.classList.remove('is-flipped');
@@ -1199,7 +1209,11 @@ function completeRoseHunt() {
     if (loveLetterTextElement) {
         loveLetterTextElement.innerHTML = '十九朵玫瑰，你都听见了。<br>往后的花期，都想和你一起看。';
     }
-    showLoveLetter();
+    if (document.body.classList.contains('is-letter')) {
+        showLoveLetter();
+    } else {
+        showLetterPrompt(true);
+    }
     spawnRoseBurst(0, true);
     playCompletionMelody();
 }
@@ -1230,9 +1244,71 @@ function closeSecretLetter() {
     secretLetterOpen = false;
     secretLetterElement.hidden = true;
     document.body.classList.remove('is-secret');
-    if (replayButton) {
-        replayButton.focus({ preventScroll: true });
+    const focusTarget = letterToggleElement && letterToggleElement.classList.contains('is-visible')
+        ? letterToggleElement
+        : guideToggleElement;
+    if (focusTarget) {
+        focusTarget.focus({ preventScroll: true });
     }
+}
+
+/**
+ * 打开玩法说明
+ */
+function openGuide() {
+    if (!guideModalElement) {
+        return;
+    }
+    guideModalElement.hidden = false;
+    document.body.classList.add('is-guide');
+    if (guideToggleElement) {
+        guideToggleElement.classList.add('is-seen');
+    }
+    if (guideCloseButton) {
+        guideCloseButton.focus({ preventScroll: true });
+    }
+}
+
+/**
+ * 关闭玩法说明
+ */
+function closeGuide() {
+    if (!guideModalElement || guideModalElement.hidden) {
+        return;
+    }
+    guideModalElement.hidden = true;
+    document.body.classList.remove('is-guide');
+    if (guideToggleElement) {
+        guideToggleElement.focus({ preventScroll: true });
+    }
+}
+
+/**
+ * 显示“读信”提示
+ * @param {boolean} complete 是否已集齐十九朵
+ */
+function showLetterPrompt(complete = false) {
+    if (!letterToggleElement || document.body.classList.contains('is-letter')) {
+        return;
+    }
+    hideDragHint();
+    letterToggleElement.classList.add('is-visible');
+    letterToggleElement.classList.toggle('is-complete', complete);
+    letterToggleElement.setAttribute('aria-hidden', 'false');
+    if (letterToggleTextElement) {
+        letterToggleTextElement.textContent = complete ? '完整信 · 读信' : '有一封信 · 读信';
+    }
+}
+
+/**
+ * 隐藏“读信”提示
+ */
+function hideLetterPrompt() {
+    if (!letterToggleElement) {
+        return;
+    }
+    letterToggleElement.classList.remove('is-visible');
+    letterToggleElement.setAttribute('aria-hidden', 'true');
 }
 
 /**
@@ -1243,6 +1319,7 @@ function showLoveLetter() {
         return;
     }
     clearTimeout(letterTimer);
+    hideLetterPrompt();
     clearTimeout(roseNoteTimer);
     if (roseNoteElement) {
         roseNoteElement.classList.remove('is-visible');
@@ -1251,6 +1328,29 @@ function showLoveLetter() {
     document.body.classList.add('is-letter');
     loveLetterElement.setAttribute('aria-hidden', 'false');
     loveLetterElement.tabIndex = 0;
+    loveLetterElement.focus({ preventScroll: true });
+}
+
+/**
+ * 收起结尾信卡
+ */
+function hideLoveLetter() {
+    if (!loveLetterElement || !document.body.classList.contains('is-letter')) {
+        return;
+    }
+    document.body.classList.remove('is-letter');
+    loveLetterElement.setAttribute('aria-hidden', 'true');
+    loveLetterElement.tabIndex = -1;
+    stopTypewriter();
+    loveLetterElement.classList.remove('is-flipped');
+    if (loveLetterBackElement) {
+        loveLetterBackElement.textContent = '';
+        loveLetterBackElement.classList.remove('is-complete');
+    }
+    showLetterPrompt(roseState.allFound);
+    if (letterToggleElement) {
+        letterToggleElement.focus({ preventScroll: true });
+    }
 }
 
 /**
@@ -1317,6 +1417,7 @@ function toggleLoveLetter() {
  */
 function resetLoveLetterCard() {
     stopTypewriter();
+    hideLetterPrompt();
     if (!loveLetterElement) {
         return;
     }
@@ -1592,6 +1693,7 @@ function closeCase() {
     sparkMaterial.uniforms.uOriginTime.value = -1;
     clearLoveRibbons();
     hideRoseHuntUI();
+    closeGuide();
     clearOpenOverlays();
     setInterfaceMode('closing');
 }
@@ -1801,15 +1903,51 @@ function bindInteraction() {
 
     if (loveLetterElement) {
         loveLetterElement.addEventListener('click', (event) => {
+            if (event.target.closest('.love-letter__close')) {
+                return;
+            }
             event.stopPropagation();
             toggleLoveLetter();
         });
         loveLetterElement.addEventListener('keydown', (event) => {
+            if (event.target.closest('.love-letter__close')) {
+                return;
+            }
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 toggleLoveLetter();
             }
         });
+    }
+
+    if (loveLetterCloseButton) {
+        loveLetterCloseButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            hideLoveLetter();
+        });
+    }
+
+    if (letterToggleElement) {
+        letterToggleElement.addEventListener('click', (event) => {
+            event.stopPropagation();
+            showLoveLetter();
+        });
+    }
+
+    if (guideToggleElement) {
+        guideToggleElement.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openGuide();
+        });
+    }
+    if (guideCloseButton) {
+        guideCloseButton.addEventListener('click', closeGuide);
+    }
+    if (guideModalElement) {
+        const guideBackdrop = guideModalElement.querySelector('[data-guide-close]');
+        if (guideBackdrop) {
+            guideBackdrop.addEventListener('click', closeGuide);
+        }
     }
 
     if (secretLetterCloseButton) {
@@ -1901,6 +2039,13 @@ function bindInteraction() {
     });
 
     window.addEventListener('keydown', (event) => {
+        if (guideModalElement && !guideModalElement.hidden) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeGuide();
+            }
+            return;
+        }
         if (secretLetterOpen) {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -2138,6 +2283,14 @@ async function boot() {
     loveLetterBackElement = document.getElementById('love-letter-back');
     loveLetterEyebrowElement = document.getElementById('love-letter-eyebrow');
     loveLetterDailyElement = document.getElementById('love-letter-daily');
+    loveLetterCloseButton = document.getElementById('love-letter-close');
+    letterToggleElement = document.getElementById('letter-toggle');
+    letterToggleTextElement = letterToggleElement
+        ? letterToggleElement.querySelector('.letter-toggle__text')
+        : null;
+    guideToggleElement = document.getElementById('guide-toggle');
+    guideModalElement = document.getElementById('guide-modal');
+    guideCloseButton = document.getElementById('guide-close');
     roseProgressElement = document.getElementById('rose-progress');
     roseCountElement = document.getElementById('rose-count');
     roseBarElement = document.getElementById('rose-bar');

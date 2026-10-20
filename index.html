@@ -63,7 +63,12 @@
             <span class="drag-hint__line"></span>
         </div>
 
-        <article class="love-letter" id="love-letter" role="button" tabindex="-1" aria-label="翻开或合上信件" aria-hidden="true">
+        <button class="letter-toggle" id="letter-toggle" type="button" aria-hidden="true">
+            <span class="letter-toggle__eyebrow">A LETTER FOR 刘烨</span>
+            <span class="letter-toggle__text">有一封信 · 读信</span>
+        </button>
+
+        <article class="love-letter" id="love-letter" tabindex="-1" aria-label="信件，按回车或空格翻面" aria-hidden="true">
             <div class="love-letter__inner">
                 <div class="love-letter__face love-letter__face--front">
                     <span class="love-letter__eyebrow" id="love-letter-eyebrow">To 刘烨</span>
@@ -77,12 +82,15 @@
                     <span class="love-letter__hint">轻触翻回</span>
                 </div>
             </div>
+            <button class="love-letter__close" id="love-letter-close" type="button">收起</button>
         </article>
 
         <button class="replay" id="replay" type="button" aria-hidden="true" tabindex="-1">
             <span class="replay__line" aria-hidden="true"></span>
             再看一次
         </button>
+
+        <button class="guide-toggle" id="guide-toggle" type="button">玩法说明</button>
 
         <p class="sr-only" id="status" aria-live="polite"></p>
 
@@ -107,6 +115,69 @@
                     <p>如果浪漫有形状，大概就是今晚这束玫瑰，和我看向你时的样子。</p>
                 </div>
                 <button class="secret-letter__close" id="secret-letter-close" type="button">收好这封信</button>
+            </article>
+        </div>
+
+        <div class="guide-modal" id="guide-modal" hidden>
+            <div class="guide-modal__backdrop" data-guide-close aria-hidden="true"></div>
+            <article class="guide-modal__card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+                <div class="guide-modal__scroll">
+                    <span class="guide-modal__eyebrow">HOW TO PLAY · 玩法说明</span>
+                    <h2 class="guide-modal__title" id="guide-title">这束花可以怎么玩</h2>
+                    <p class="guide-modal__intro">不急着看完，慢慢试。每一项都不会打断花束，也不会弄丢已经收集的情话。</p>
+                    <div class="guide-grid">
+                    <div class="guide-item">
+                        <span class="guide-item__num">01</span>
+                        <div>
+                            <h3 class="guide-item__title">点玫瑰，收集情话</h3>
+                            <p class="guide-item__text">开盒后点击任意一朵玫瑰，会飘出一句情话。右上角会记录“已听见 N / 19”。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">02</span>
+                        <div>
+                            <h3 class="guide-item__title">找那朵金色玫瑰</h3>
+                            <p class="guide-item__text">十九朵里有一朵带金色微光。找到它，会打开一封隐藏长信。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">03</span>
+                        <div>
+                            <h3 class="guide-item__title">拂过花束</h3>
+                            <p class="guide-item__text">鼠标或手指拂过花朵，附近粒子会轻轻避让，指尖还会带起几片小花瓣。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">04</span>
+                        <div>
+                            <h3 class="guide-item__title">拖动右侧的“光”</h3>
+                            <p class="guide-item__text">按住画面右侧的小光点拖动，改变主光方向。花瓣明暗和玻璃反光都会跟着变。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">05</span>
+                        <div>
+                            <h3 class="guide-item__title">打开音乐盒</h3>
+                            <p class="guide-item__text">右上角“音乐 关”可以开启。每点亮一朵玫瑰，会响一个不同的音符；集齐后有一小段旋律。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">06</span>
+                        <div>
+                            <h3 class="guide-item__title">读信，不挡着玩</h3>
+                            <p class="guide-item__text">出现“读信”后，想看再点开。信卡可以翻面、可以“收起”，不会再一直挡在画面里。</p>
+                        </div>
+                    </div>
+                    <div class="guide-item">
+                        <span class="guide-item__num">07</span>
+                        <div>
+                            <h3 class="guide-item__title">再来一次</h3>
+                            <p class="guide-item__text">右下角“再看一次”会合上玻璃罩。重新开盒后，金色玫瑰和情话都会重新随机。</p>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <button class="guide-modal__close" id="guide-close" type="button">开始探索</button>
             </article>
         </div>
 
