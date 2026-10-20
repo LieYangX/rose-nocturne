@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#050404">
+    <meta name="description" content="一场以粒子玫瑰为主角的玻璃礼盒开启仪式。">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050404'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23d8bd91' stroke-width='1'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23a52a3f'/%3E%3C/svg%3E">
+    <title>Nocturne · 夜宴玫瑰</title>
+</head>
+<body>
+    <main class="scene-shell">
+        <canvas id="stage" aria-label="被玻璃罩封存的粒子玫瑰花束，轻触后开启"></canvas>
+
+        <header class="masthead">
+            <div class="brand">
+                <span class="brand__name">NOCTURNE</span>
+                <span class="brand__sub">ATELIER DE ROSES</span>
+            </div>
+            <span class="edition">N°19</span>
+        </header>
+
+        <aside class="inscription" aria-hidden="true">
+            <span class="inscription__rule"></span>
+            <span class="inscription__text">十九朵玫瑰，予你</span>
+        </aside>
+
+        <div class="hint" id="hint">
+            <span class="hint__line"></span>
+            <button class="hint__button" id="enter" type="button">
+                <span class="hint__dot" aria-hidden="true"></span>
+                轻触玻璃 · 为你绽放
+            </button>
+            <span class="hint__line"></span>
+        </div>
+
+        <p class="tagline" id="tagline">今夜，玫瑰替我说话。</p>
+
+        <button class="replay" id="replay" type="button" aria-hidden="true" tabindex="-1">
+            <span class="replay__line" aria-hidden="true"></span>
+            再看一次
+        </button>
+
+        <p class="sr-only" id="status" aria-live="polite"></p>
+
+        <div class="cursor" id="cursor" aria-hidden="true">
+            <span class="cursor__dot"></span>
+        </div>
+
+        <div class="veil" id="veil" aria-hidden="true">
+            <span class="veil__mark">N°19</span>
+            <span class="veil__line"></span>
+        </div>
+
+        <div class="fallback" hidden>
+            <p>这场玫瑰需要支持 WebGL 的浏览器。</p>
+        </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

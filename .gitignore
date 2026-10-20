@@ -1,0 +1,15 @@
+# 依赖
+node_modules/
+
+# 构建与临时产物
+dist/
+Nocturne-Rose.html
+scripts/
+previews/
+.vite/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+Desktop.ini
