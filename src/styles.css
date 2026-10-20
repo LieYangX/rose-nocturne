@@ -372,6 +372,71 @@ button:focus-visible {
     box-shadow: 0 0 10px rgba(216, 189, 145, 0.8);
 }
 
+.love-ribbons {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.love-ribbon {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    max-width: 84vw;
+    padding: 5px 12px;
+    border: 1px solid var(--ribbon-border);
+    border-left: 2px solid var(--ribbon-accent);
+    border-radius: 2px;
+    background: var(--ribbon-bg);
+    box-shadow:
+        0 4px 18px rgba(0, 0, 0, 0.28),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+    color: #f4e2cb;
+    font-family: var(--serif);
+    font-size: clamp(9.5px, 0.82vw, 11.5px);
+    font-weight: 300;
+    letter-spacing: 0.09em;
+    line-height: 1;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+    white-space: nowrap;
+    opacity: 0;
+    will-change: transform, opacity, filter;
+}
+
+.love-ribbon.is-accent {
+    border-color: rgba(246, 220, 177, 0.46);
+    box-shadow:
+        0 0 26px rgba(216, 189, 145, 0.14),
+        0 4px 18px rgba(0, 0, 0, 0.3);
+    color: #fff1d8;
+}
+
+.love-ribbon--rose {
+    --ribbon-bg: linear-gradient(90deg, rgba(147, 24, 51, 0.72), rgba(82, 10, 28, 0.38));
+    --ribbon-border: rgba(255, 163, 180, 0.32);
+    --ribbon-accent: #e3778b;
+}
+
+.love-ribbon--blush {
+    --ribbon-bg: linear-gradient(90deg, rgba(181, 105, 113, 0.55), rgba(94, 45, 51, 0.3));
+    --ribbon-border: rgba(255, 204, 202, 0.3);
+    --ribbon-accent: #efb4ad;
+}
+
+.love-ribbon--gold {
+    --ribbon-bg: linear-gradient(90deg, rgba(171, 128, 72, 0.58), rgba(85, 62, 34, 0.3));
+    --ribbon-border: rgba(246, 220, 177, 0.38);
+    --ribbon-accent: #dfbd83;
+}
+
+.love-ribbon--wine {
+    --ribbon-bg: linear-gradient(90deg, rgba(91, 13, 35, 0.78), rgba(43, 7, 20, 0.42));
+    --ribbon-border: rgba(218, 143, 155, 0.28);
+    --ribbon-accent: #b84a60;
+}
+
 .veil {
     position: absolute;
     z-index: 50;
@@ -510,6 +575,13 @@ button:focus-visible {
 
     .replay__line {
         width: 16px;
+    }
+
+    .love-ribbon {
+        max-width: 88vw;
+        padding: 5px 10px;
+        font-size: 9.5px;
+        letter-spacing: 0.06em;
     }
 }
 

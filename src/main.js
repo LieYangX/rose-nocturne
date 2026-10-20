@@ -8,6 +8,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import './styles.css';
 import { createBouquetGeometry } from './geometry.js';
 import { createGlassBurstGeometry, createGlassCase } from './glassCase.js';
+import { LOVE_MESSAGES } from './loveMessages.js';
 import {
     createBackdropMaterial,
     createFallingPetalMaterial,
@@ -73,6 +74,9 @@ let hintElement;
 let hintButton;
 let replayButton;
 let cursorElement;
+let loveRibbonLayer;
+let lastOpeningMessage = '';
+let loveDeck = [];
 
 /**
  * 创建金属底座所需的环境反射
@@ -470,6 +474,150 @@ function setInterfaceMode(mode) {
 }
 
 /**
+ * 打乱情话顺序
+ * @returns {string[]} 随机排序后的情话
+ */
+function shuffleLoveMessages() {
+    const messages = LOVE_MESSAGES.slice();
+    for (let index = messages.length - 1; index > 0; index -= 1) {
+        const target = Math.floor(Math.random() * (index + 1));
+        [messages[index], messages[target]] = [messages[target], messages[index]];
+    }
+    return messages;
+}
+
+/**
+ * 从情话牌堆中抽取本次要飘出的内容
+ * @param {number} count 数量
+ * @returns {string[]} 不重复的情话
+ */
+function drawLoveMessages(count) {
+    if (loveDeck.length < count) {
+        loveDeck = loveDeck.concat(shuffleLoveMessages());
+    }
+    return loveDeck.splice(0, count);
+}
+
+/**
+ * 清除正在飘动的文字彩条
+ */
+function clearLoveRibbons() {
+    if (loveRibbonLayer) {
+        loveRibbonLayer.replaceChildren();
+    }
+}
+
+/**
+ * 开盒时随机飘出写给刘烨的文字彩条
+ */
+function spawnLoveRibbons() {
+    if (!loveRibbonLayer) {
+        return;
+    }
+
+    clearLoveRibbons();
+
+    const tones = ['rose', 'blush', 'gold', 'wine'];
+    const baseCount = reduceMotion ? 7 : (isMobile ? 14 : 22);
+    const count = baseCount + Math.floor(Math.random() * 4);
+    const messages = drawLoveMessages(count);
+
+    if (messages[0] === lastOpeningMessage && messages.length > 1) {
+        [messages[0], messages[1]] = [messages[1], messages[0]];
+    }
+    lastOpeningMessage = messages[0];
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const centerX = width * 0.5;
+    const centerY = height * (isMobile ? 0.4 : 0.43);
+
+    for (let index = 0; index < count; index += 1) {
+        const message = messages[index % messages.length];
+        const tone = tones[Math.floor(Math.random() * tones.length)];
+        const element = document.createElement('div');
+        element.className = `love-ribbon love-ribbon--${tone}`;
+        if (Math.random() < 0.26) {
+            element.classList.add('is-accent');
+        }
+        element.textContent = message;
+
+        const startAngle = Math.random() * Math.PI * 2;
+        const startRadiusX = width * (0.02 + Math.random() * 0.085);
+        const startRadiusY = height * (0.012 + Math.random() * 0.055);
+        const startX = centerX + Math.cos(startAngle) * startRadiusX;
+        const startY = centerY + Math.sin(startAngle) * startRadiusY;
+        element.style.left = `${startX}px`;
+        element.style.top = `${startY}px`;
+        loveRibbonLayer.appendChild(element);
+
+        const stagger = reduceMotion ? 0 : (index / count) * 2400;
+        const delay = 160 + stagger + Math.random() * 380;
+        const duration = reduceMotion ? 3600 : 4300 + Math.random() * 2500;
+        const startRotation = (Math.random() * 2 - 1) * 5;
+        const endRotation = startRotation + (Math.random() * 2 - 1) * 16;
+
+        if (reduceMotion) {
+            const animation = element.animate([
+                {
+                    opacity: 0,
+                    transform: `translate(-50%, -50%) rotate(${startRotation}deg) scale(0.92)`
+                },
+                {
+                    opacity: 1,
+                    offset: 0.16,
+                    transform: `translate(-50%, -50%) rotate(${startRotation}deg) scale(1)`
+                },
+                {
+                    opacity: 0,
+                    transform: `translate(-50%, -50%) rotate(${endRotation}deg) scale(1)`
+                }
+            ], {
+                duration,
+                delay,
+                easing: 'ease-out',
+                fill: 'both'
+            });
+            animation.onfinish = () => element.remove();
+            continue;
+        }
+
+        const travelAngle = startAngle + (Math.random() - 0.5) * 0.65;
+        const distance = width * (0.13 + Math.random() * 0.22);
+        const travelX = Math.cos(travelAngle) * distance;
+        const travelY = Math.sin(travelAngle) * distance * 0.45
+            - height * (0.07 + Math.random() * 0.21);
+
+        const animation = element.animate([
+            {
+                opacity: 0,
+                transform: `translate(-50%, -50%) translate(0px, 0px) rotate(${startRotation * 0.4}deg) scale(0.7)`
+            },
+            {
+                opacity: 1,
+                offset: 0.18,
+                transform: `translate(-50%, -50%) translate(${travelX * 0.16}px, ${travelY * 0.12}px) rotate(${startRotation * 0.65}deg) scale(0.94)`
+            },
+            {
+                opacity: 0.92,
+                offset: 0.64,
+                transform: `translate(-50%, -50%) translate(${travelX * 0.64}px, ${travelY * 0.7}px) rotate(${endRotation}deg) scale(1)`
+            },
+            {
+                opacity: 0,
+                transform: `translate(-50%, -50%) translate(${travelX}px, ${travelY}px) rotate(${endRotation * 1.15}deg) scale(1.03)`
+            }
+        ], {
+            duration,
+            delay,
+            easing: 'cubic-bezier(0.18, 0.72, 0.24, 1)',
+            fill: 'both'
+        });
+        animation.onfinish = () => element.remove();
+    }
+}
+
+/**
  * 打开玻璃罩
  */
 function openCase() {
@@ -486,6 +634,7 @@ function openCase() {
     state.burstVisible = true;
     sparkMaterial.uniforms.uOriginTime.value = clock.elapsedTime + 0.14;
     setInterfaceMode('opening');
+    spawnLoveRibbons();
 }
 
 /**
@@ -503,6 +652,7 @@ function closeCase() {
     state.spinVelocity = 0;
     state.burstVisible = false;
     sparkMaterial.uniforms.uOriginTime.value = -1;
+    clearLoveRibbons();
     setInterfaceMode('closing');
 }
 
@@ -763,6 +913,7 @@ async function boot() {
     hintButton = document.getElementById('enter');
     replayButton = document.getElementById('replay');
     cursorElement = document.getElementById('cursor');
+    loveRibbonLayer = document.getElementById('love-ribbons');
 
     createStage();
     const bouquetInfo = createBouquet();
