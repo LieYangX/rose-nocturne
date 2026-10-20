@@ -661,6 +661,16 @@ function closeCase() {
  */
 function bindInteraction() {
     const canvas = document.getElementById(CANVAS_ID);
+    const coarsePointer = window.matchMedia('(pointer: coarse)');
+
+    // 移动端长按不呼出系统菜单，整页也不允许进入文字选择状态
+    canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+    document.addEventListener('contextmenu', (event) => {
+        if (coarsePointer.matches) {
+            event.preventDefault();
+        }
+    });
+    document.addEventListener('selectstart', (event) => event.preventDefault());
 
     canvas.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) {

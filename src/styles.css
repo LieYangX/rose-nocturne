@@ -24,6 +24,11 @@ body {
     margin: 0;
     overflow: hidden;
     background: var(--night);
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
 }
 
 body {
@@ -56,6 +61,14 @@ button:focus-visible {
     overflow: hidden;
     background:
         radial-gradient(ellipse 74% 68% at 50% 45%, #1a0d0c 0%, #0a0606 48%, #040303 100%);
+}
+
+.scene-shell,
+.scene-shell * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .scene-shell::before {
