@@ -520,7 +520,7 @@ body.is-letter .tagline {
     bottom: calc(8.8vh + env(safe-area-inset-bottom));
     left: 50%;
     width: min(86vw, 340px);
-    height: 220px;
+    height: clamp(250px, 36vh, 310px);
     opacity: 0;
     perspective: 1100px;
     pointer-events: none;
@@ -650,9 +650,23 @@ body.is-guide #cursor {
 
 .love-letter__face--back {
     align-items: flex-start;
-    padding: 18px 26px 20px;
+    justify-content: flex-start;
+    padding: 30px 26px 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     text-align: left;
     transform: rotateY(180deg);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(216, 189, 145, 0.3) transparent;
+}
+
+.love-letter__face--back::-webkit-scrollbar {
+    width: 4px;
+}
+
+.love-letter__face--back::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(216, 189, 145, 0.28);
 }
 
 .love-letter__face--back .love-letter__hint {
@@ -738,8 +752,8 @@ body.is-guide #cursor {
 .love-letter__close {
     position: absolute;
     z-index: 4;
-    top: 5px;
-    right: 8px;
+    top: 14px;
+    right: 12px;
     padding: 6px 8px;
     border-bottom: 1px solid rgba(216, 189, 145, 0.24);
     color: rgba(216, 189, 145, 0.78);
@@ -1668,8 +1682,8 @@ body.is-guide button {
     }
 
     .love-letter__close {
-        top: 4px;
-        right: 5px;
+        top: 12px;
+        right: 10px;
         min-height: 30px;
         padding: 8px 9px;
         font-size: 8.5px;
@@ -1726,7 +1740,7 @@ body.is-guide button {
     .love-letter {
         bottom: calc(18vh + env(safe-area-inset-bottom));
         width: 82vw;
-        height: 235px;
+        height: clamp(250px, 36vh, 310px);
     }
 
     .love-letter__face {
@@ -1734,7 +1748,7 @@ body.is-guide button {
     }
 
     .love-letter__face--back {
-        padding: 16px 20px 18px;
+        padding: 28px 20px 22px;
     }
 
     .love-letter__text {

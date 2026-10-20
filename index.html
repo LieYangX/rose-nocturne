@@ -79,13 +79,13 @@
         <article class="love-letter" id="love-letter" tabindex="-1" aria-label="信件，按回车或空格翻面" aria-hidden="true">
             <div class="love-letter__inner">
                 <div class="love-letter__face love-letter__face--front">
-                    <span class="love-letter__eyebrow" id="love-letter-eyebrow">To 刘烨</span>
-                    <p class="love-letter__text" id="love-letter-text">花会替我，<br>把没说完的话慢慢说完。</p>
+                    <span class="love-letter__eyebrow" id="love-letter-eyebrow"></span>
+                    <p class="love-letter__text" id="love-letter-text"></p>
                     <p class="love-letter__daily" id="love-letter-daily"></p>
                     <span class="love-letter__hint">轻触翻面</span>
                 </div>
                 <div class="love-letter__face love-letter__face--back">
-                    <span class="love-letter__eyebrow">给刘烨</span>
+                    <span class="love-letter__eyebrow" id="love-letter-back-eyebrow"></span>
                     <p class="love-letter__text love-letter__text--typed" id="love-letter-back"></p>
                     <span class="love-letter__hint">轻触翻回</span>
                 </div>
@@ -114,15 +114,10 @@
         <div class="secret-letter" id="secret-letter" hidden>
             <div class="secret-letter__backdrop" data-secret-close aria-hidden="true"></div>
             <article class="secret-letter__card" role="dialog" aria-modal="true" aria-labelledby="secret-letter-title">
-                <span class="secret-letter__eyebrow">A HIDDEN LETTER · To 刘烨</span>
-                <h2 class="secret-letter__title" id="secret-letter-title">你找到了那朵金色的玫瑰</h2>
-                <div class="secret-letter__body">
-                    <p>刘烨：</p>
-                    <p>这束花里藏着十九句想对你说的话，而这一句，只想在最后交给你。</p>
-                    <p>谢谢你来到我的生活里。愿以后每一个有花的日子，都有你在身边。</p>
-                    <p>如果浪漫有形状，大概就是今晚这束玫瑰，和我看向你时的样子。</p>
-                </div>
-                <button class="secret-letter__close" id="secret-letter-close" type="button">收好这封信</button>
+                <span class="secret-letter__eyebrow" id="secret-letter-eyebrow"></span>
+                <h2 class="secret-letter__title" id="secret-letter-title"></h2>
+                <div class="secret-letter__body" id="secret-letter-body"></div>
+                <button class="secret-letter__close" id="secret-letter-close" type="button"></button>
             </article>
         </div>
 

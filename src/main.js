@@ -9,6 +9,7 @@ import './styles.css';
 import { createBouquetGeometry } from './geometry.js';
 import { createGlassBurstGeometry, createGlassCase } from './glassCase.js';
 import { LOVE_MESSAGES } from './loveMessages.js';
+import { LETTER_CONTENT } from './letter-content.js';
 import {
     createBackdropMaterial,
     createFallingPetalMaterial,
@@ -619,30 +620,8 @@ function getDailyLine() {
         period = 'late';
     }
 
-    const lines = {
-        morning: [
-            '刘烨，早安，今天也要开心。',
-            '刘烨，醒来有花，今天会很好。',
-            '刘烨，把清晨的第一束光送给你。'
-        ],
-        afternoon: [
-            '刘烨，午后的花，和想你的心一样明亮。',
-            '刘烨，今天也偷偷想你了。',
-            '刘烨，愿这束花点亮你的下午。'
-        ],
-        evening: [
-            '刘烨，今夜玫瑰替我说话。',
-            '刘烨，今晚的浪漫专属于你。',
-            '刘烨，忙完一天，来看看花吧。'
-        ],
-        late: [
-            '刘烨，晚安，梦里也要有花香。',
-            '刘烨，夜深了，花替你守着好梦。',
-            '刘烨，今天辛苦了，晚安。'
-        ]
-    };
-
-    const pool = lines[period];
+    const lines = LETTER_CONTENT.dailyLines;
+    const pool = lines[period] || lines.evening;
     return pool[daySeed % pool.length];
 }
 
@@ -669,6 +648,45 @@ function drawRoseMessages(count) {
         roseMessageDeck = roseMessageDeck.concat(shuffleLoveMessages());
     }
     return roseMessageDeck.splice(0, count);
+}
+
+/**
+ * 把信件文案写入页面
+ */
+function applyLetterContent() {
+    const { loveLetter, secretLetter } = LETTER_CONTENT;
+    const backEyebrow = document.getElementById('love-letter-back-eyebrow');
+    const secretEyebrow = document.getElementById('secret-letter-eyebrow');
+    const secretTitle = document.getElementById('secret-letter-title');
+    const secretBody = document.getElementById('secret-letter-body');
+
+    if (loveLetterEyebrowElement) {
+        loveLetterEyebrowElement.textContent = loveLetter.frontEyebrow;
+    }
+    if (loveLetterTextElement) {
+        loveLetterTextElement.innerHTML = loveLetter.frontHtml;
+    }
+    if (backEyebrow) {
+        backEyebrow.textContent = loveLetter.backEyebrow;
+    }
+    if (secretEyebrow) {
+        secretEyebrow.textContent = secretLetter.eyebrow;
+    }
+    if (secretTitle) {
+        secretTitle.textContent = secretLetter.title;
+    }
+    if (secretBody) {
+        secretBody.replaceChildren(
+            ...secretLetter.paragraphs.map((text) => {
+                const paragraph = document.createElement('p');
+                paragraph.textContent = text;
+                return paragraph;
+            })
+        );
+    }
+    if (secretLetterCloseButton) {
+        secretLetterCloseButton.textContent = secretLetter.closeLabel;
+    }
 }
 
 /**
@@ -1586,10 +1604,10 @@ function completeRoseHunt() {
         roseProgressElement.classList.add('is-complete');
     }
     if (loveLetterEyebrowElement) {
-        loveLetterEyebrowElement.textContent = 'To 刘烨 · 19 / 19';
+        loveLetterEyebrowElement.textContent = LETTER_CONTENT.loveLetter.completeEyebrow;
     }
     if (loveLetterTextElement) {
-        loveLetterTextElement.innerHTML = '十九朵玫瑰，你都听见了。<br>往后的花期，都想和你一起看。';
+        loveLetterTextElement.innerHTML = LETTER_CONTENT.loveLetter.completeFrontHtml;
     }
     if (document.body.classList.contains('is-letter')) {
         showLoveLetter();
@@ -1757,13 +1775,7 @@ function startTypewriter() {
         return;
     }
 
-    const letter = [
-        '刘烨：',
-        '',
-        '花会开也会谢，但我想陪你，把每个普通日子都过成花期。',
-        '',
-        '今晚这束玫瑰，替我说一句：很喜欢你。'
-    ].join('\n');
+    const letter = LETTER_CONTENT.loveLetter.back;
 
     typewriterIndex = 0;
     loveLetterBackElement.textContent = '';
@@ -1810,10 +1822,10 @@ function resetLoveLetterCard() {
     loveLetterElement.tabIndex = -1;
     loveLetterElement.setAttribute('aria-hidden', 'true');
     if (loveLetterEyebrowElement) {
-        loveLetterEyebrowElement.textContent = 'To 刘烨';
+        loveLetterEyebrowElement.textContent = LETTER_CONTENT.loveLetter.frontEyebrow;
     }
     if (loveLetterTextElement) {
-        loveLetterTextElement.innerHTML = '花会替我，<br>把没说完的话慢慢说完。';
+        loveLetterTextElement.innerHTML = LETTER_CONTENT.loveLetter.frontHtml;
     }
     if (loveLetterBackElement) {
         loveLetterBackElement.textContent = '';
@@ -2634,6 +2646,7 @@ async function boot() {
     finalePetalLayer = document.getElementById('finale-petals');
     secretLetterElement = document.getElementById('secret-letter');
     secretLetterCloseButton = document.getElementById('secret-letter-close');
+    applyLetterContent();
     musicToggleElement = document.getElementById('music-toggle');
     backgroundMusic = document.getElementById('background-music');
     if (backgroundMusic) {
