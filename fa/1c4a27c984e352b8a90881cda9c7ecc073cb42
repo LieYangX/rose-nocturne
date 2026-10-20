@@ -1,0 +1,20 @@
+README.md
+  h_1d1a3d05761997 62
+docs/index.html
+  h_1d1a3d05761997 4780-4781,4798-4799,4934-4935
+index.html
+  h_1d1a3d05761997 24-25,160-161
+src/main.js
+  h_1d1a3d05761997 113-114,1519-1564,1574-1575,1577-1584,1594-1596,2252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa1c4a27c984e352b8a90881cda9c7ecc073cb42",
+  "prompts": {},
+  "humans": {
+    "h_1d1a3d05761997": {
+      "author": "xiangwei <18573714766@139.com>"
+    }
+  }
+}
