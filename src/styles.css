@@ -1143,6 +1143,24 @@ body.is-open .guide-toggle {
     cursor: none;
 }
 
+/* 打开信卡、隐藏长信或玩法面板时恢复系统鼠标，避免 PC 端看不到光标 */
+body.is-letter,
+body.is-letter *,
+body.is-secret,
+body.is-secret *,
+body.is-guide,
+body.is-guide * {
+    cursor: default;
+}
+
+body.is-letter .love-letter,
+body.is-letter .love-letter *,
+body.is-letter button,
+body.is-secret button,
+body.is-guide button {
+    cursor: pointer;
+}
+
 .cursor.is-visible {
     opacity: 0.82;
 }
