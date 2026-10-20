@@ -1,0 +1,24 @@
+README.md
+  h_1d1a3d05761997 1,3,54,61-64,77
+docs/index.html
+  h_1d1a3d05761997 7,9,4763-4764,4770,4782,4794
+index.html
+  h_1d1a3d05761997 7,9,14,26,38
+src/loveMessages.js
+  h_1d1a3d05761997 1-66
+src/main.js
+  h_1d1a3d05761997 11,77-79,476-619,637,655,916
+src/styles.css
+  h_1d1a3d05761997 375-439,579-585
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b46c74e78138580b80159e329c56ac548dfe2b5",
+  "prompts": {},
+  "humans": {
+    "h_1d1a3d05761997": {
+      "author": "xiangwei <18573714766@139.com>"
+    }
+  }
+}
