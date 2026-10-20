@@ -110,7 +110,8 @@ let secretLetterOpen = false;
 let musicToggleElement;
 let backgroundMusic;
 let musicFadeTimer;
-let musicEnabled = false;
+let musicEnabled = true;
+let musicAutoplayBlocked = false;
 let lightControlElement;
 let lightOrbElement;
 let lightDragging = false;
@@ -1516,6 +1517,52 @@ function fadeMusicVolume(target, duration, onDone) {
 }
 
 /**
+ * 启动背景音乐并淡入
+ */
+function startBackgroundMusic() {
+    if (!backgroundMusic) {
+        return;
+    }
+    musicEnabled = true;
+    updateMusicButton();
+    if (backgroundMusic.paused) {
+        backgroundMusic.volume = 0;
+    }
+    const playPromise = backgroundMusic.play();
+    if (playPromise && playPromise.then) {
+        playPromise.then(() => {
+            musicAutoplayBlocked = false;
+            fadeMusicVolume(0.34, 1800);
+        }).catch(() => {
+            musicAutoplayBlocked = true;
+        });
+    } else {
+        fadeMusicVolume(0.34, 1800);
+    }
+}
+
+/**
+ * 页面加载时先尝试自动播放；被浏览器拦截时等待开盒手势
+ */
+function attemptBackgroundMusicAutoplay() {
+    if (!backgroundMusic || !musicEnabled) {
+        return;
+    }
+    backgroundMusic.volume = 0;
+    const playPromise = backgroundMusic.play();
+    if (playPromise && playPromise.then) {
+        playPromise.then(() => {
+            musicAutoplayBlocked = false;
+            fadeMusicVolume(0.34, 1800);
+        }).catch(() => {
+            musicAutoplayBlocked = true;
+        });
+    } else {
+        fadeMusicVolume(0.34, 1800);
+    }
+}
+
+/**
  * 开启或关闭背景音乐
  */
 function toggleMusic() {
@@ -1524,26 +1571,17 @@ function toggleMusic() {
     }
 
     if (!musicEnabled) {
-        musicEnabled = true;
-        updateMusicButton();
-        backgroundMusic.volume = 0;
-        const playPromise = backgroundMusic.play();
-        if (playPromise && playPromise.catch) {
-            playPromise.catch(() => {
-                musicEnabled = false;
-                updateMusicButton();
-            });
-        }
-        fadeMusicVolume(0.34, 1800);
-    } else {
-        musicEnabled = false;
-        updateMusicButton();
-        fadeMusicVolume(0, 650, () => {
-            if (!musicEnabled) {
-                backgroundMusic.pause();
-            }
-        });
+        startBackgroundMusic();
+        return;
     }
+
+    musicEnabled = false;
+    updateMusicButton();
+    fadeMusicVolume(0, 650, () => {
+        if (!musicEnabled) {
+            backgroundMusic.pause();
+        }
+    });
 }
 
 /**
@@ -1552,6 +1590,9 @@ function toggleMusic() {
 function openCase() {
     if (state.mode !== 'closed') {
         return;
+    }
+    if (musicEnabled && backgroundMusic && (musicAutoplayBlocked || backgroundMusic.paused)) {
+        startBackgroundMusic();
     }
     state.mode = 'opening';
     state.time = 0;
@@ -2208,6 +2249,7 @@ async function boot() {
         });
     }
     updateMusicButton();
+    attemptBackgroundMusicAutoplay();
     lightControlElement = document.getElementById('light-control');
     lightOrbElement = lightControlElement
         ? lightControlElement.querySelector('.light-control__orb')
