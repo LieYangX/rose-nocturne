@@ -48,6 +48,11 @@ const state = {
     rotation: 0,
     spinVelocity: 0,
     dragging: false,
+    pointerDown: false,
+    pointerStartX: 0,
+    pointerStartY: 0,
+    pointerMoved: false,
+    lastPointerMove: 0,
     lastPointerX: 0,
     pointerX: 0,
     pointerY: 0,
@@ -75,6 +80,7 @@ let hintButton;
 let replayButton;
 let cursorElement;
 let loveRibbonLayer;
+let fingerPetalLayer;
 let dragHintElement;
 let loveLetterElement;
 let dragHintShowTimer;
@@ -82,6 +88,59 @@ let dragHintHideTimer;
 let letterTimer;
 let lastOpeningMessage = '';
 let loveDeck = [];
+let bouquetLayout = [];
+let roseProgressElement;
+let roseCountElement;
+let roseBarElement;
+let roseNoteElement;
+let roseNoteTimer;
+let goldenMarker;
+let goldenMarkerMaterial;
+let roseMessageDeck = [];
+let roseState = {
+    discovered: new Set(),
+    goldenIndex: -1,
+    goldenFound: false,
+    allFound: false,
+    messages: []
+};
+let secretLetterElement;
+let secretLetterCloseButton;
+let secretLetterOpen = false;
+let musicToggleElement;
+let audioContext;
+let musicGain;
+let musicEnabled = false;
+let musicTimer;
+let lightControlElement;
+let lightOrbElement;
+let lightDragging = false;
+let lightDragStartX = 0;
+let lightDragStartY = 0;
+let lightStartAzimuth = 0;
+let lightStartElevation = 0;
+let lightAzimuth = 2.33;
+let lightElevation = 0.96;
+let stageLights;
+let taglineElement;
+let loveLetterTextElement;
+let loveLetterBackElement;
+let loveLetterEyebrowElement;
+let loveLetterDailyElement;
+let typewriterTimer;
+let typewriterIndex = 0;
+let lastFingerPetalTime = 0;
+let activeRoseBursts = 0;
+const pointerNdc = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+const pointerPlane = new THREE.Plane();
+const pointerWorld = new THREE.Vector3();
+const pointerLocal = new THREE.Vector3();
+const pointerCameraDirection = new THREE.Vector3();
+const roseHitPoint = new THREE.Vector3();
+const roseSphere = new THREE.Sphere();
+const roseRay = new THREE.Ray();
+const roseInverseMatrix = new THREE.Matrix4();
 
 /**
  * 创建金属底座所需的环境反射
@@ -138,7 +197,7 @@ function createStage() {
     fillLight.position.set(2.7, 2.4, 3.2);
     scene.add(fillLight);
 
-    return { backdropMaterial, floorMaterial };
+    return { backdropMaterial, floorMaterial, keyLight, rimLight, fillLight };
 }
 
 /**
@@ -186,6 +245,7 @@ function createBouquet() {
     return {
         solidMaterial,
         glowMaterial,
+        layout: geometry.layout,
         solidCount: geometry.solidCount,
         glowCount: geometry.glowCount
     };
@@ -516,6 +576,79 @@ function clearLoveRibbons() {
 }
 
 /**
+ * 根据当前时间段取一句每日情话
+ * @returns {string} 今日结尾文案
+ */
+function getDailyLine() {
+    const now = new Date();
+    const hour = now.getHours();
+    const daySeed = Math.floor(
+        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86400000
+    );
+    let period = 'evening';
+    if (hour < 5) {
+        period = 'late';
+    } else if (hour < 11) {
+        period = 'morning';
+    } else if (hour < 17) {
+        period = 'afternoon';
+    } else if (hour >= 22) {
+        period = 'late';
+    }
+
+    const lines = {
+        morning: [
+            '刘烨，早安，今天也要开心。',
+            '刘烨，醒来有花，今天会很好。',
+            '刘烨，把清晨的第一束光送给你。'
+        ],
+        afternoon: [
+            '刘烨，午后的花，和想你的心一样明亮。',
+            '刘烨，今天也偷偷想你了。',
+            '刘烨，愿这束花点亮你的下午。'
+        ],
+        evening: [
+            '刘烨，今夜玫瑰替我说话。',
+            '刘烨，今晚的浪漫专属于你。',
+            '刘烨，忙完一天，来看看花吧。'
+        ],
+        late: [
+            '刘烨，晚安，梦里也要有花香。',
+            '刘烨，夜深了，花替你守着好梦。',
+            '刘烨，今天辛苦了，晚安。'
+        ]
+    };
+
+    const pool = lines[period];
+    return pool[daySeed % pool.length];
+}
+
+/**
+ * 更新底部的每日情话
+ */
+function updateDailyLine() {
+    const line = getDailyLine();
+    if (taglineElement) {
+        taglineElement.textContent = line;
+    }
+    if (loveLetterDailyElement) {
+        loveLetterDailyElement.textContent = line;
+    }
+}
+
+/**
+ * 从情话牌堆中抽取玫瑰点击文案
+ * @param {number} count 数量
+ * @returns {string[]} 不重复的情话
+ */
+function drawRoseMessages(count) {
+    if (roseMessageDeck.length < count) {
+        roseMessageDeck = roseMessageDeck.concat(shuffleLoveMessages());
+    }
+    return roseMessageDeck.splice(0, count);
+}
+
+/**
  * 隐藏拖拽提示
  */
 function hideDragHint() {
@@ -534,10 +667,7 @@ function clearOpenOverlays() {
     clearTimeout(dragHintHideTimer);
     clearTimeout(letterTimer);
     hideDragHint();
-    document.body.classList.remove('is-letter');
-    if (loveLetterElement) {
-        loveLetterElement.setAttribute('aria-hidden', 'true');
-    }
+    resetLoveLetterCard();
 }
 
 /**
@@ -564,10 +694,7 @@ function scheduleOpenOverlays() {
         if (state.mode !== 'open') {
             return;
         }
-        document.body.classList.add('is-letter');
-        if (loveLetterElement) {
-            loveLetterElement.setAttribute('aria-hidden', 'false');
-        }
+        showLoveLetter();
     }, reduceMotion ? 5600 : 8200);
 }
 
@@ -708,6 +835,719 @@ function spawnLoveRibbons() {
 }
 
 /**
+ * 获取玫瑰花朵的局部中心
+ * @param {object} head 玫瑰布局
+ * @param {THREE.Vector3} target 复用目标向量
+ * @returns {THREE.Vector3} 局部中心
+ */
+function roseHeadLocalCenter(head, target = new THREE.Vector3()) {
+    return target
+        .set(0, 0.22, 0)
+        .applyQuaternion(head.quaternion)
+        .multiplyScalar(head.scale)
+        .add(head.position);
+}
+
+/**
+ * 判断点击位置命中了哪一朵玫瑰
+ * @param {number} clientX 屏幕横坐标
+ * @param {number} clientY 屏幕纵坐标
+ * @returns {number} 玫瑰索引，未命中返回 -1
+ */
+function pickRoseAt(clientX, clientY) {
+    if (!camera || !bouquetGroup || state.mode !== 'open' || bouquetLayout.length === 0) {
+        return -1;
+    }
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointerNdc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(pointerNdc, camera);
+
+    bouquetGroup.updateMatrixWorld(true);
+    roseInverseMatrix.copy(bouquetGroup.matrixWorld).invert();
+    roseRay.copy(raycaster.ray).applyMatrix4(roseInverseMatrix);
+
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    for (let index = 0; index < bouquetLayout.length; index += 1) {
+        const head = bouquetLayout[index];
+        const center = roseHeadLocalCenter(head);
+        roseSphere.set(center, 0.52 * head.scale);
+        if (roseRay.intersectSphere(roseSphere, roseHitPoint)) {
+            const distance = roseHitPoint.distanceToSquared(roseRay.origin);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = index;
+            }
+        }
+    }
+    return bestIndex;
+}
+
+/**
+ * 创建金色玫瑰的微光标记
+ */
+function createGoldenMarker() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(255, 236, 188, 0.9)');
+    gradient.addColorStop(0.22, 'rgba(243, 203, 130, 0.48)');
+    gradient.addColorStop(0.55, 'rgba(209, 148, 72, 0.12)');
+    gradient.addColorStop(1, 'rgba(120, 60, 20, 0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 128, 128);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    goldenMarkerMaterial = new THREE.SpriteMaterial({
+        map: texture,
+        color: 0xffd79a,
+        transparent: true,
+        opacity: 0.38,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    goldenMarker = new THREE.Sprite(goldenMarkerMaterial);
+    goldenMarker.visible = false;
+    goldenMarker.renderOrder = 22;
+    bouquetGroup.add(goldenMarker);
+}
+
+/**
+ * 把金色微光移动到随机选中的玫瑰上
+ */
+function positionGoldenMarker() {
+    if (!goldenMarker || roseState.goldenIndex < 0 || !bouquetLayout[roseState.goldenIndex]) {
+        return;
+    }
+    const head = bouquetLayout[roseState.goldenIndex];
+    roseHeadLocalCenter(head, goldenMarker.position);
+    const scale = 1.0 * head.scale;
+    goldenMarker.scale.set(scale, scale, 1);
+    goldenMarker.visible = true;
+    goldenMarkerMaterial.opacity = 0.38;
+}
+
+/**
+ * 重置寻花彩蛋
+ */
+function resetRoseHunt() {
+    clearTimeout(roseNoteTimer);
+    roseState.discovered.clear();
+    roseState.goldenIndex = Math.floor(Math.random() * bouquetLayout.length);
+    roseState.goldenFound = false;
+    roseState.allFound = false;
+    roseState.messages = drawRoseMessages(bouquetLayout.length);
+
+    if (roseNoteElement) {
+        roseNoteElement.classList.remove('is-visible', 'is-golden');
+        roseNoteElement.replaceChildren();
+    }
+    if (roseProgressElement) {
+        roseProgressElement.classList.remove('is-visible', 'is-complete');
+        roseProgressElement.setAttribute('aria-hidden', 'true');
+    }
+    if (roseCountElement) {
+        roseCountElement.textContent = '0';
+    }
+    if (roseBarElement) {
+        roseBarElement.style.width = '0%';
+    }
+
+    resetLoveLetterCard();
+    positionGoldenMarker();
+}
+
+/**
+ * 隐藏寻花进度和标记
+ */
+function hideRoseHuntUI() {
+    clearTimeout(roseNoteTimer);
+    if (roseNoteElement) {
+        roseNoteElement.classList.remove('is-visible', 'is-golden');
+    }
+    if (roseProgressElement) {
+        roseProgressElement.classList.remove('is-visible');
+        roseProgressElement.setAttribute('aria-hidden', 'true');
+    }
+    if (goldenMarker) {
+        goldenMarker.visible = false;
+    }
+    closeSecretLetter();
+}
+
+/**
+ * 在玫瑰位置生成一小簇粒子
+ * @param {number} index 玫瑰索引
+ * @param {boolean} golden 是否为金色玫瑰
+ */
+function spawnRoseBurst(index, golden = false) {
+    if (!bouquetLayout[index] || activeRoseBursts >= 6) {
+        return;
+    }
+    activeRoseBursts += 1;
+
+    bouquetGroup.updateMatrixWorld(true);
+    roseHeadLocalCenter(bouquetLayout[index], pointerLocal);
+    pointerLocal.applyMatrix4(bouquetGroup.matrixWorld);
+
+    const count = golden ? 110 : (isMobile ? 46 : 64);
+    const positions = [];
+    const velocities = [];
+    const colors = [];
+    const sizes = [];
+    const seeds = [];
+    const delays = [];
+    const gold = new THREE.Color('#f6d9a2');
+    const rose = new THREE.Color('#d95468');
+    const deep = new THREE.Color('#7d142a');
+
+    for (let particle = 0; particle < count; particle += 1) {
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(Math.random() * 2 - 1);
+        const radius = 0.08 + Math.random() * 0.38;
+        const offset = new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * radius,
+            Math.cos(phi) * radius * 0.7 + 0.1,
+            Math.sin(phi) * Math.sin(theta) * radius
+        );
+        positions.push(
+            pointerLocal.x + offset.x,
+            pointerLocal.y + offset.y,
+            pointerLocal.z + offset.z
+        );
+
+        const speed = 0.2 + Math.random() * 0.65;
+        velocities.push(
+            offset.x * speed * 2.4,
+            0.18 + Math.random() * 0.5,
+            offset.z * speed * 2.4
+        );
+
+        const color = golden || Math.random() < 0.3
+            ? gold.clone().lerp(rose, Math.random() * 0.28)
+            : rose.clone().lerp(deep, Math.random() * 0.55);
+        colors.push(color.r, color.g, color.b);
+        sizes.push(0.008 + Math.random() * 0.014);
+        seeds.push(Math.random());
+        delays.push(Math.random() * 0.08);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('aVelocity', new THREE.Float32BufferAttribute(velocities, 3));
+    geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 1));
+    geometry.setAttribute('aDelay', new THREE.Float32BufferAttribute(delays, 1));
+    geometry.computeBoundingSphere();
+
+    const material = createSparkMaterial();
+    material.uniforms.uLife.value = golden ? 1.8 : 1.25;
+    material.uniforms.uIntensity.value = golden ? 1.7 : 1.15;
+    material.uniforms.uOpacity.value = 0.9;
+    material.uniforms.uOriginTime.value = clock.elapsedTime;
+    material.uniforms.uTime.value = clock.elapsedTime;
+    material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+    material.uniforms.uProjectionScale.value = projectionScale;
+
+    const points = new THREE.Points(geometry, material);
+    points.renderOrder = 26;
+    points.frustumCulled = false;
+    scene.add(points);
+    animatedMaterials.add(material);
+
+    setTimeout(() => {
+        scene.remove(points);
+        animatedMaterials.delete(material);
+        geometry.dispose();
+        material.dispose();
+        activeRoseBursts = Math.max(0, activeRoseBursts - 1);
+    }, golden ? 2400 : 1800);
+}
+
+/**
+ * 在点击的玫瑰上方显示一句情话
+ * @param {number} index 玫瑰索引
+ * @param {string} message 情话
+ * @param {boolean} golden 是否为金色玫瑰
+ */
+function showRoseNote(index, message, golden = false) {
+    if (!roseNoteElement || !bouquetLayout[index]) {
+        return;
+    }
+
+    bouquetGroup.updateMatrixWorld(true);
+    roseHeadLocalCenter(bouquetLayout[index], pointerLocal);
+    pointerLocal.applyMatrix4(bouquetGroup.matrixWorld);
+    pointerWorld.copy(pointerLocal).project(camera);
+
+    const screenX = (pointerWorld.x * 0.5 + 0.5) * window.innerWidth;
+    const screenY = (-pointerWorld.y * 0.5 + 0.5) * window.innerHeight;
+    const halfWidth = Math.min(window.innerWidth * 0.36, 220);
+    const left = window.innerWidth <= 720
+        ? window.innerWidth * 0.5
+        : Math.max(halfWidth + 16, Math.min(window.innerWidth - halfWidth - 16, screenX));
+    const top = Math.max(128, Math.min(window.innerHeight * 0.66, screenY + 22));
+
+    roseNoteElement.style.left = `${left}px`;
+    roseNoteElement.style.top = `${top}px`;
+
+    const indexLabel = document.createElement('span');
+    indexLabel.className = 'rose-note__index';
+    indexLabel.textContent = golden
+        ? `GOLDEN ROSE · 第 ${index + 1} 朵`
+        : `第 ${index + 1} 朵 · 已听见`;
+    const text = document.createElement('span');
+    text.textContent = message;
+    roseNoteElement.replaceChildren(indexLabel, text);
+    roseNoteElement.classList.toggle('is-golden', golden);
+    roseNoteElement.classList.add('is-visible');
+
+    clearTimeout(roseNoteTimer);
+    roseNoteTimer = setTimeout(() => {
+        roseNoteElement.classList.remove('is-visible');
+    }, 4200);
+}
+
+/**
+ * 更新寻花进度
+ */
+function updateRoseProgress() {
+    if (!roseProgressElement) {
+        return;
+    }
+    const found = roseState.discovered.size;
+    const total = bouquetLayout.length;
+    roseProgressElement.classList.add('is-visible');
+    roseProgressElement.setAttribute('aria-hidden', 'false');
+    if (roseCountElement) {
+        roseCountElement.textContent = String(found);
+    }
+    if (roseBarElement) {
+        roseBarElement.style.width = `${(found / total) * 100}%`;
+    }
+    roseProgressElement.classList.toggle('is-complete', found === total);
+}
+
+/**
+ * 处理点击玫瑰
+ * @param {number} index 玫瑰索引
+ */
+function handleRoseClick(index) {
+    if (index < 0 || secretLetterOpen || !bouquetLayout[index]) {
+        return;
+    }
+
+    const message = roseState.messages[index] || '刘烨，这一朵花也听见你了。';
+    const isNew = !roseState.discovered.has(index);
+    const isGolden = index === roseState.goldenIndex;
+    roseState.discovered.add(index);
+    hideDragHint();
+
+    spawnRoseBurst(index, isGolden);
+    showRoseNote(index, message, isGolden);
+
+    if (isNew) {
+        updateRoseProgress();
+        playRoseNote(index);
+    }
+
+    if (isGolden && !roseState.goldenFound) {
+        roseState.goldenFound = true;
+        if (goldenMarker) {
+            goldenMarker.visible = false;
+        }
+        playSecretChime();
+        setTimeout(() => {
+            if (!secretLetterOpen && state.mode === 'open' && roseState.goldenFound) {
+                openSecretLetter();
+            }
+        }, 650);
+    }
+
+    if (roseState.discovered.size === bouquetLayout.length && !roseState.allFound) {
+        completeRoseHunt();
+    }
+}
+
+/**
+ * 十九朵全部点亮后的完整结尾
+ */
+function completeRoseHunt() {
+    roseState.allFound = true;
+    stopTypewriter();
+    if (loveLetterElement) {
+        loveLetterElement.classList.remove('is-flipped');
+    }
+    if (loveLetterBackElement) {
+        loveLetterBackElement.textContent = '';
+        loveLetterBackElement.classList.remove('is-complete');
+    }
+    if (roseProgressElement) {
+        roseProgressElement.classList.add('is-complete');
+    }
+    if (loveLetterEyebrowElement) {
+        loveLetterEyebrowElement.textContent = 'To 刘烨 · 19 / 19';
+    }
+    if (loveLetterTextElement) {
+        loveLetterTextElement.innerHTML = '十九朵玫瑰，你都听见了。<br>往后的花期，都想和你一起看。';
+    }
+    showLoveLetter();
+    spawnRoseBurst(0, true);
+    playCompletionMelody();
+}
+
+/**
+ * 打开隐藏长信
+ */
+function openSecretLetter() {
+    if (!secretLetterElement || secretLetterOpen) {
+        return;
+    }
+    secretLetterOpen = true;
+    secretLetterElement.hidden = false;
+    document.body.classList.add('is-secret');
+    if (secretLetterCloseButton) {
+        secretLetterCloseButton.focus({ preventScroll: true });
+    }
+    playSecretChime();
+}
+
+/**
+ * 关闭隐藏长信
+ */
+function closeSecretLetter() {
+    if (!secretLetterElement || !secretLetterOpen) {
+        return;
+    }
+    secretLetterOpen = false;
+    secretLetterElement.hidden = true;
+    document.body.classList.remove('is-secret');
+    if (replayButton) {
+        replayButton.focus({ preventScroll: true });
+    }
+}
+
+/**
+ * 显示结尾信卡
+ */
+function showLoveLetter() {
+    if (!loveLetterElement) {
+        return;
+    }
+    clearTimeout(letterTimer);
+    clearTimeout(roseNoteTimer);
+    if (roseNoteElement) {
+        roseNoteElement.classList.remove('is-visible');
+    }
+    hideDragHint();
+    document.body.classList.add('is-letter');
+    loveLetterElement.setAttribute('aria-hidden', 'false');
+    loveLetterElement.tabIndex = 0;
+}
+
+/**
+ * 停止打字机效果
+ */
+function stopTypewriter() {
+    if (typewriterTimer) {
+        clearInterval(typewriterTimer);
+        typewriterTimer = null;
+    }
+}
+
+/**
+ * 在信卡背面逐字打出长信
+ */
+function startTypewriter() {
+    stopTypewriter();
+    if (!loveLetterBackElement) {
+        return;
+    }
+
+    const letter = [
+        '刘烨：',
+        '',
+        '花会开也会谢，但我想陪你，把每个普通日子都过成花期。',
+        '',
+        '今晚这束玫瑰，替我说一句：很喜欢你。'
+    ].join('\n');
+
+    typewriterIndex = 0;
+    loveLetterBackElement.textContent = '';
+    loveLetterBackElement.classList.remove('is-complete');
+    typewriterTimer = setInterval(() => {
+        typewriterIndex += 1;
+        loveLetterBackElement.textContent = letter.slice(0, typewriterIndex);
+        if (typewriterIndex >= letter.length) {
+            stopTypewriter();
+            loveLetterBackElement.classList.add('is-complete');
+        }
+    }, 38);
+}
+
+/**
+ * 翻面信卡
+ */
+function toggleLoveLetter() {
+    if (!loveLetterElement || !document.body.classList.contains('is-letter')) {
+        return;
+    }
+    const flipped = loveLetterElement.classList.toggle('is-flipped');
+    if (flipped) {
+        startTypewriter();
+    } else {
+        stopTypewriter();
+        if (loveLetterBackElement) {
+            loveLetterBackElement.textContent = '';
+            loveLetterBackElement.classList.remove('is-complete');
+        }
+    }
+}
+
+/**
+ * 重置信卡内容与翻面状态
+ */
+function resetLoveLetterCard() {
+    stopTypewriter();
+    if (!loveLetterElement) {
+        return;
+    }
+    loveLetterElement.classList.remove('is-flipped');
+    loveLetterElement.tabIndex = -1;
+    loveLetterElement.setAttribute('aria-hidden', 'true');
+    if (loveLetterEyebrowElement) {
+        loveLetterEyebrowElement.textContent = 'To 刘烨';
+    }
+    if (loveLetterTextElement) {
+        loveLetterTextElement.innerHTML = '花会替我，<br>把没说完的话慢慢说完。';
+    }
+    if (loveLetterBackElement) {
+        loveLetterBackElement.textContent = '';
+        loveLetterBackElement.classList.remove('is-complete');
+    }
+    document.body.classList.remove('is-letter');
+}
+
+/**
+ * 更新主光方向
+ */
+function applyLightDirection() {
+    const direction = new THREE.Vector3(
+        Math.cos(lightElevation) * Math.cos(lightAzimuth),
+        Math.sin(lightElevation),
+        Math.cos(lightElevation) * Math.sin(lightAzimuth)
+    ).normalize();
+
+    for (const material of animatedMaterials) {
+        if (material.uniforms.uKeyDir) {
+            material.uniforms.uKeyDir.value.copy(direction);
+        }
+    }
+    if (glassCase) {
+        const sideMaterial = glassCase.materials.sideMaterial;
+        const topMaterial = glassCase.materials.topMaterial;
+        if (sideMaterial.uniforms.uLightDir) {
+            sideMaterial.uniforms.uLightDir.value.copy(direction);
+        }
+        if (topMaterial.uniforms.uLightDir) {
+            topMaterial.uniforms.uLightDir.value.copy(direction);
+        }
+    }
+    if (stageLights && stageLights.keyLight) {
+        stageLights.keyLight.position.copy(direction).multiplyScalar(14);
+    }
+    if (lightControlElement) {
+        const value = Math.round(((lightElevation - 0.18) / 1.2) * 100);
+        lightControlElement.setAttribute('aria-valuenow', String(Math.max(0, Math.min(100, value))));
+    }
+}
+
+/**
+ * 切换主光方向
+ * @param {number} azimuth 方位角
+ * @param {number} elevation 高度角
+ */
+function setLightDirection(azimuth, elevation) {
+    lightAzimuth = azimuth;
+    lightElevation = Math.max(0.18, Math.min(1.38, elevation));
+    applyLightDirection();
+}
+
+/**
+ * 创建并启动音乐盒
+ * @returns {AudioContext|null} 音频上下文
+ */
+function ensureAudioContext() {
+    if (audioContext) {
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+        return audioContext;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+        return null;
+    }
+
+    audioContext = new AudioContextClass();
+    musicGain = audioContext.createGain();
+    musicGain.gain.value = 0.0001;
+
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 3600;
+    filter.Q.value = 0.3;
+
+    const delay = audioContext.createDelay(1);
+    delay.delayTime.value = 0.26;
+    const feedback = audioContext.createGain();
+    feedback.gain.value = 0.18;
+
+    musicGain.connect(filter);
+    filter.connect(audioContext.destination);
+    filter.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(audioContext.destination);
+
+    return audioContext;
+}
+
+/**
+ * 播放一个柔和的风铃音
+ * @param {number} frequency 频率
+ * @param {number} duration 时长
+ * @param {number} volume 音量
+ */
+function playChime(frequency, duration = 1.5, volume = 0.05) {
+    if (!musicEnabled || !audioContext || !musicGain || document.hidden) {
+        return;
+    }
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const overtone = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const overtoneGain = audioContext.createGain();
+
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = frequency;
+    overtone.type = 'sine';
+    overtone.frequency.value = frequency * 2.01;
+    overtoneGain.gain.value = 0.16;
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    oscillator.connect(gain);
+    overtone.connect(overtoneGain);
+    overtoneGain.connect(gain);
+    gain.connect(musicGain);
+
+    oscillator.start(now);
+    overtone.start(now);
+    oscillator.stop(now + duration + 0.06);
+    overtone.stop(now + duration + 0.06);
+}
+
+const ROSE_NOTES = [
+    261.63, 293.66, 329.63, 392.00, 440.00,
+    523.25, 587.33, 659.25, 783.99, 880.00,
+    1046.50, 1174.66, 1318.51, 1567.98, 1760.00,
+    2093.00, 2349.32, 2637.02, 3135.96
+];
+
+/**
+ * 玫瑰被点击时的音符
+ * @param {number} index 玫瑰索引
+ */
+function playRoseNote(index) {
+    if (!musicEnabled) {
+        return;
+    }
+    ensureAudioContext();
+    playChime(ROSE_NOTES[index % ROSE_NOTES.length], 1.15, 0.045);
+}
+
+/**
+ * 金色玫瑰的隐藏音效
+ */
+function playSecretChime() {
+    if (!musicEnabled) {
+        return;
+    }
+    ensureAudioContext();
+    playChime(659.25, 1.8, 0.055);
+    setTimeout(() => playChime(987.77, 2.0, 0.035), 180);
+}
+
+/**
+ * 十九朵全部找到后的短旋律
+ */
+function playCompletionMelody() {
+    if (!musicEnabled) {
+        return;
+    }
+    ensureAudioContext();
+    [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((note, index) => {
+        setTimeout(() => playChime(note, 1.5, 0.04), index * 170);
+    });
+}
+
+/**
+ * 开启或关闭音乐盒
+ */
+function toggleMusic() {
+    const context = ensureAudioContext();
+    if (!context) {
+        if (musicToggleElement) {
+            musicToggleElement.textContent = '音乐不可用';
+            musicToggleElement.disabled = true;
+        }
+        return;
+    }
+
+    musicEnabled = !musicEnabled;
+    if (musicToggleElement) {
+        musicToggleElement.textContent = musicEnabled ? '音乐 开' : '音乐 关';
+        musicToggleElement.setAttribute('aria-pressed', String(musicEnabled));
+    }
+
+    if (musicEnabled) {
+        clearInterval(musicTimer);
+        const now = context.currentTime;
+        musicGain.gain.cancelScheduledValues(now);
+        musicGain.gain.setValueAtTime(Math.max(0.0001, musicGain.gain.value), now);
+        musicGain.gain.linearRampToValueAtTime(0.72, now + 1.2);
+        let step = 0;
+        musicTimer = setInterval(() => {
+            if (!musicEnabled) {
+                return;
+            }
+            const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 783.99];
+            playChime(melody[step % melody.length], 2.1, 0.02);
+            step += 1;
+        }, 2100);
+        playChime(523.25, 2.4, 0.035);
+    } else {
+        clearInterval(musicTimer);
+        const now = context.currentTime;
+        musicGain.gain.cancelScheduledValues(now);
+        musicGain.gain.setValueAtTime(Math.max(0.0001, musicGain.gain.value), now);
+        musicGain.gain.linearRampToValueAtTime(0.0001, now + 0.5);
+    }
+}
+
+/**
  * 打开玻璃罩
  */
 function openCase() {
@@ -724,9 +1564,15 @@ function openCase() {
     state.hasDragged = false;
     state.burstVisible = true;
     sparkMaterial.uniforms.uOriginTime.value = clock.elapsedTime + 0.14;
+    resetRoseHunt();
+    updateDailyLine();
     setInterfaceMode('opening');
     spawnLoveRibbons();
     scheduleOpenOverlays();
+    if (musicEnabled) {
+        ensureAudioContext();
+        playChime(392, 2.0, 0.035);
+    }
 }
 
 /**
@@ -745,8 +1591,99 @@ function closeCase() {
     state.burstVisible = false;
     sparkMaterial.uniforms.uOriginTime.value = -1;
     clearLoveRibbons();
+    hideRoseHuntUI();
     clearOpenOverlays();
     setInterfaceMode('closing');
+}
+
+/**
+ * 把指针位置映射到花束局部坐标，驱动粒子避让
+ * @param {number} clientX 屏幕横坐标
+ * @param {number} clientY 屏幕纵坐标
+ */
+function updateRosePointerInfluence(clientX, clientY) {
+    if (!bouquetMaterials || state.mode !== 'open' || secretLetterOpen) {
+        return;
+    }
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointerNdc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(pointerNdc, camera);
+    camera.getWorldDirection(pointerCameraDirection);
+    pointerPlane.setFromNormalAndCoplanarPoint(
+        pointerCameraDirection,
+        new THREE.Vector3(0, 2.3, 0)
+    );
+
+    if (raycaster.ray.intersectPlane(pointerPlane, pointerWorld)) {
+        pointerLocal.copy(pointerWorld);
+        bouquetGroup.worldToLocal(pointerLocal);
+        for (const material of [bouquetMaterials.solidMaterial, bouquetMaterials.glowMaterial]) {
+            material.uniforms.uPointer.value.copy(pointerLocal);
+            material.uniforms.uPointerStrength.value = 1;
+        }
+        state.lastPointerMove = performance.now() / 1000;
+    }
+}
+
+/**
+ * 指尖拂过时飘出几片小花瓣
+ * @param {number} clientX 屏幕横坐标
+ * @param {number} clientY 屏幕纵坐标
+ */
+function spawnFingerPetals(clientX, clientY) {
+    if (!fingerPetalLayer || state.mode !== 'open' || secretLetterOpen || reduceMotion) {
+        return;
+    }
+
+    const now = performance.now();
+    if (now - lastFingerPetalTime < 95) {
+        return;
+    }
+    lastFingerPetalTime = now;
+
+    const count = 1 + Math.floor(Math.random() * 2);
+    while (fingerPetalLayer.childElementCount > 36) {
+        fingerPetalLayer.firstElementChild.remove();
+    }
+
+    for (let index = 0; index < count; index += 1) {
+        const petal = document.createElement('span');
+        petal.className = 'finger-petal';
+        const size = 6 + Math.random() * 6;
+        petal.style.left = `${clientX + (Math.random() - 0.5) * 18}px`;
+        petal.style.top = `${clientY + (Math.random() - 0.5) * 14}px`;
+        petal.style.width = `${size}px`;
+        petal.style.height = `${size * 0.55}px`;
+        fingerPetalLayer.appendChild(petal);
+
+        const driftX = (Math.random() - 0.5) * 90;
+        const driftY = -35 - Math.random() * 80;
+        const rotation = (Math.random() * 2 - 1) * 120;
+        const animation = petal.animate([
+            {
+                opacity: 0,
+                transform: 'translate(-50%, -50%) rotate(0deg) scale(0.7)'
+            },
+            {
+                opacity: 0.82,
+                offset: 0.18,
+                transform: 'translate(-50%, -50%) rotate(20deg) scale(1)'
+            },
+            {
+                opacity: 0,
+                transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${driftY}px)) rotate(${rotation}deg) scale(0.55)`
+            }
+        ], {
+            duration: 850 + Math.random() * 650,
+            easing: 'cubic-bezier(0.18, 0.7, 0.28, 1)',
+            fill: 'both'
+        });
+        animation.onfinish = () => petal.remove();
+    }
 }
 
 /**
@@ -774,36 +1711,76 @@ function bindInteraction() {
             return;
         }
         if (state.mode === 'open') {
-            state.dragging = true;
-            state.hasDragged = true;
+            state.pointerDown = true;
+            state.pointerStartX = event.clientX;
+            state.pointerStartY = event.clientY;
+            state.pointerMoved = false;
+            state.dragging = false;
             state.lastPointerX = event.clientX;
             canvas.setPointerCapture(event.pointerId);
-            hideDragHint();
         }
     });
 
     canvas.addEventListener('pointermove', (event) => {
-        if (!state.dragging) {
+        if (state.mode === 'open') {
+            updateRosePointerInfluence(event.clientX, event.clientY);
+            spawnFingerPetals(event.clientX, event.clientY);
+        }
+
+        if (!state.pointerDown) {
             return;
         }
-        const delta = event.clientX - state.lastPointerX;
-        state.lastPointerX = event.clientX;
-        state.rotation += delta * 0.0052;
-        state.spinVelocity = delta * 0.0036;
+
+        const distance = Math.hypot(
+            event.clientX - state.pointerStartX,
+            event.clientY - state.pointerStartY
+        );
+        if (!state.dragging && distance > 6) {
+            state.dragging = true;
+            state.hasDragged = true;
+            state.lastPointerX = event.clientX;
+            hideDragHint();
+            if (roseNoteElement) {
+                roseNoteElement.classList.remove('is-visible');
+            }
+        }
+
+        if (state.dragging) {
+            const delta = event.clientX - state.lastPointerX;
+            state.lastPointerX = event.clientX;
+            state.rotation += delta * 0.0052;
+            state.spinVelocity = delta * 0.0036;
+        }
     });
 
-    const endDrag = (event) => {
-        if (!state.dragging) {
+    const endPointer = (event, cancelled = false) => {
+        if (!state.pointerDown) {
             return;
         }
+        const wasDragging = state.dragging;
+        state.pointerDown = false;
         state.dragging = false;
+
         if (event.pointerId !== undefined && canvas.hasPointerCapture(event.pointerId)) {
             canvas.releasePointerCapture(event.pointerId);
         }
+
+        if (!cancelled && !wasDragging) {
+            const index = pickRoseAt(event.clientX, event.clientY);
+            if (index >= 0) {
+                handleRoseClick(index);
+            }
+        }
     };
 
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('pointerup', (event) => endPointer(event, false));
+    canvas.addEventListener('pointercancel', (event) => endPointer(event, true));
+    canvas.addEventListener('pointerleave', () => {
+        if (bouquetMaterials) {
+            bouquetMaterials.solidMaterial.uniforms.uPointerStrength.value = 0;
+            bouquetMaterials.glowMaterial.uniforms.uPointerStrength.value = 0;
+        }
+    });
 
     hintButton.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -815,7 +1792,122 @@ function bindInteraction() {
         closeCase();
     });
 
+    if (musicToggleElement) {
+        musicToggleElement.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleMusic();
+        });
+    }
+
+    if (loveLetterElement) {
+        loveLetterElement.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleLoveLetter();
+        });
+        loveLetterElement.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleLoveLetter();
+            }
+        });
+    }
+
+    if (secretLetterCloseButton) {
+        secretLetterCloseButton.addEventListener('click', closeSecretLetter);
+    }
+    if (secretLetterElement) {
+        const backdrop = secretLetterElement.querySelector('[data-secret-close]');
+        if (backdrop) {
+            backdrop.addEventListener('click', closeSecretLetter);
+        }
+    }
+
+    if (lightControlElement) {
+        lightControlElement.addEventListener('pointerdown', (event) => {
+            if (state.mode !== 'open') {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            lightDragging = true;
+            lightDragStartX = event.clientX;
+            lightDragStartY = event.clientY;
+            lightStartAzimuth = lightAzimuth;
+            lightStartElevation = lightElevation;
+            lightControlElement.classList.add('is-dragging');
+            lightControlElement.setPointerCapture(event.pointerId);
+        });
+
+        lightControlElement.addEventListener('pointermove', (event) => {
+            if (!lightDragging) {
+                return;
+            }
+            event.preventDefault();
+            const deltaX = event.clientX - lightDragStartX;
+            const deltaY = event.clientY - lightDragStartY;
+            setLightDirection(
+                lightStartAzimuth + deltaX * 0.011,
+                lightStartElevation - deltaY * 0.008
+            );
+            if (lightOrbElement) {
+                const offsetX = Math.max(-12, Math.min(12, deltaX * 0.18));
+                const offsetY = Math.max(-12, Math.min(12, deltaY * 0.18));
+                lightOrbElement.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            }
+        });
+
+        const endLightDrag = (event) => {
+            if (!lightDragging) {
+                return;
+            }
+            lightDragging = false;
+            lightControlElement.classList.remove('is-dragging');
+            if (lightOrbElement) {
+                lightOrbElement.style.transform = '';
+            }
+            if (event.pointerId !== undefined && lightControlElement.hasPointerCapture(event.pointerId)) {
+                lightControlElement.releasePointerCapture(event.pointerId);
+            }
+        };
+
+        lightControlElement.addEventListener('pointerup', endLightDrag);
+        lightControlElement.addEventListener('pointercancel', endLightDrag);
+        lightControlElement.addEventListener('keydown', (event) => {
+            const step = 0.08;
+            if (event.key === 'ArrowLeft') {
+                setLightDirection(lightAzimuth - step, lightElevation);
+            } else if (event.key === 'ArrowRight') {
+                setLightDirection(lightAzimuth + step, lightElevation);
+            } else if (event.key === 'ArrowUp') {
+                setLightDirection(lightAzimuth, lightElevation + step);
+            } else if (event.key === 'ArrowDown') {
+                setLightDirection(lightAzimuth, lightElevation - step);
+            } else {
+                return;
+            }
+            event.preventDefault();
+        });
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!audioContext) {
+            return;
+        }
+        if (document.hidden) {
+            audioContext.suspend();
+        } else if (musicEnabled) {
+            audioContext.resume();
+        }
+    });
+
     window.addEventListener('keydown', (event) => {
+        if (secretLetterOpen) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSecretLetter();
+            }
+            return;
+        }
         if (event.key === 'Enter' || event.key === ' ') {
             if (state.mode === 'closed') {
                 event.preventDefault();
@@ -930,6 +2022,25 @@ function updateScene() {
         bouquetMaterials.glowMaterial.uniforms.uSway.value = 0.004 + materialMotion * 0.014;
         bouquetMaterials.glowMaterial.uniforms.uDrift.value = 0.003 + materialMotion * 0.007;
         bouquetMaterials.glowMaterial.uniforms.uSwirl.value = 0.003 + materialMotion * 0.01;
+
+        const pointerIdle = state.mode !== 'open' || now - state.lastPointerMove > 0.16;
+        if (pointerIdle) {
+            const decay = Math.min(1, delta * 5.5);
+            bouquetMaterials.solidMaterial.uniforms.uPointerStrength.value = lerp(
+                bouquetMaterials.solidMaterial.uniforms.uPointerStrength.value,
+                0,
+                decay
+            );
+            bouquetMaterials.glowMaterial.uniforms.uPointerStrength.value = lerp(
+                bouquetMaterials.glowMaterial.uniforms.uPointerStrength.value,
+                0,
+                decay
+            );
+        }
+    }
+
+    if (goldenMarker && goldenMarker.visible && goldenMarkerMaterial) {
+        goldenMarkerMaterial.opacity = 0.3 + Math.sin(elapsed * 1.5) * 0.09;
     }
 
     const targetDistance = fitDistance * (1 + openEase * (isMobile ? 0 : 0.06));
@@ -1020,12 +2131,31 @@ async function boot() {
     replayButton = document.getElementById('replay');
     cursorElement = document.getElementById('cursor');
     loveRibbonLayer = document.getElementById('love-ribbons');
+    fingerPetalLayer = document.getElementById('finger-petals');
     dragHintElement = document.getElementById('drag-hint');
     loveLetterElement = document.getElementById('love-letter');
+    loveLetterTextElement = document.getElementById('love-letter-text');
+    loveLetterBackElement = document.getElementById('love-letter-back');
+    loveLetterEyebrowElement = document.getElementById('love-letter-eyebrow');
+    loveLetterDailyElement = document.getElementById('love-letter-daily');
+    roseProgressElement = document.getElementById('rose-progress');
+    roseCountElement = document.getElementById('rose-count');
+    roseBarElement = document.getElementById('rose-bar');
+    roseNoteElement = document.getElementById('rose-note');
+    secretLetterElement = document.getElementById('secret-letter');
+    secretLetterCloseButton = document.getElementById('secret-letter-close');
+    musicToggleElement = document.getElementById('music-toggle');
+    lightControlElement = document.getElementById('light-control');
+    lightOrbElement = lightControlElement
+        ? lightControlElement.querySelector('.light-control__orb')
+        : null;
+    taglineElement = document.getElementById('tagline');
 
-    createStage();
+    stageLights = createStage();
     const bouquetInfo = createBouquet();
     bouquetMaterials = bouquetInfo;
+    bouquetLayout = bouquetInfo.layout;
+    createGoldenMarker();
     createAtmosphere();
     createFallingPetals();
     createCaseAndBurst();
@@ -1033,11 +2163,14 @@ async function boot() {
     createPostProcessing();
     bindInteraction();
     registerAnimatedMaterials();
+    applyLightDirection();
+    updateDailyLine();
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
 
     state.mode = 'closed';
     setInterfaceMode('closed');
+    resetLoveLetterCard();
     updateParticleUniforms(0, renderer.getPixelRatio(), projectionScale);
     renderer.compile(scene, camera);
     composer.render();
@@ -1049,12 +2182,32 @@ async function boot() {
             renderer,
             composer,
             bouquetGroup,
+            bouquetMaterials,
+            bouquetLayout,
             glassCase,
             sparkMaterial,
             motesMaterial,
+            stageLights,
+            roseState,
             state,
             openCase,
-            closeCase
+            closeCase,
+            handleRoseClick,
+            completeRoseHunt,
+            resetRoseHunt,
+            showLoveLetter,
+            toggleLoveLetter,
+            applyLightDirection,
+            getRoseScreenPositions: () => bouquetLayout.map((head, index) => {
+                const projected = roseHeadLocalCenter(head)
+                    .applyMatrix4(bouquetGroup.matrixWorld)
+                    .project(camera);
+                return {
+                    index,
+                    x: (projected.x * 0.5 + 0.5) * window.innerWidth,
+                    y: (-projected.y * 0.5 + 0.5) * window.innerHeight
+                };
+            })
         };
     }
 

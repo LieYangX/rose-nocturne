@@ -12,14 +12,32 @@
     <main class="scene-shell">
         <canvas id="stage" aria-label="被玻璃罩封存的粒子玫瑰花束，轻触后开启"></canvas>
         <div class="love-ribbons" id="love-ribbons" aria-hidden="true"></div>
+        <div class="finger-petals" id="finger-petals" aria-hidden="true"></div>
 
         <header class="masthead">
             <div class="brand">
                 <span class="brand__name">NOCTURNE</span>
                 <span class="brand__sub">ATELIER DE ROSES</span>
             </div>
-            <span class="edition">N°19</span>
+            <div class="masthead__meta">
+                <span class="edition">N°19</span>
+                <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">
+                    音乐 关
+                </button>
+            </div>
         </header>
+
+        <div class="rose-progress" id="rose-progress" aria-live="polite" aria-hidden="true">
+            <span class="rose-progress__label">已听见</span>
+            <span class="rose-progress__count"><b id="rose-count">0</b> / 19</span>
+            <span class="rose-progress__bar"><i id="rose-bar"></i></span>
+        </div>
+
+        <div class="light-control" id="light-control" role="slider" aria-label="拖动调整光线方向" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0">
+            <span class="light-control__ring" aria-hidden="true"></span>
+            <span class="light-control__orb" aria-hidden="true"></span>
+            <span class="light-control__label" aria-hidden="true">光</span>
+        </div>
 
         <aside class="inscription" aria-hidden="true">
             <span class="inscription__rule"></span>
@@ -37,15 +55,28 @@
 
         <p class="tagline" id="tagline">刘烨，今夜玫瑰替我说话。</p>
 
+        <div class="rose-note" id="rose-note" aria-live="polite"></div>
+
         <div class="drag-hint" id="drag-hint" aria-hidden="true">
             <span class="drag-hint__line"></span>
             按住拖拽 · 细看这束花
             <span class="drag-hint__line"></span>
         </div>
 
-        <article class="love-letter" id="love-letter" aria-hidden="true">
-            <span class="love-letter__eyebrow">To 刘烨</span>
-            <p class="love-letter__text">花会替我，<br>把没说完的话慢慢说完。</p>
+        <article class="love-letter" id="love-letter" role="button" tabindex="-1" aria-label="翻开或合上信件" aria-hidden="true">
+            <div class="love-letter__inner">
+                <div class="love-letter__face love-letter__face--front">
+                    <span class="love-letter__eyebrow" id="love-letter-eyebrow">To 刘烨</span>
+                    <p class="love-letter__text" id="love-letter-text">花会替我，<br>把没说完的话慢慢说完。</p>
+                    <p class="love-letter__daily" id="love-letter-daily"></p>
+                    <span class="love-letter__hint">轻触翻面</span>
+                </div>
+                <div class="love-letter__face love-letter__face--back">
+                    <span class="love-letter__eyebrow">给刘烨</span>
+                    <p class="love-letter__text love-letter__text--typed" id="love-letter-back"></p>
+                    <span class="love-letter__hint">轻触翻回</span>
+                </div>
+            </div>
         </article>
 
         <button class="replay" id="replay" type="button" aria-hidden="true" tabindex="-1">
@@ -62,6 +93,21 @@
         <div class="veil" id="veil" aria-hidden="true">
             <span class="veil__mark">N°19</span>
             <span class="veil__line"></span>
+        </div>
+
+        <div class="secret-letter" id="secret-letter" hidden>
+            <div class="secret-letter__backdrop" data-secret-close aria-hidden="true"></div>
+            <article class="secret-letter__card" role="dialog" aria-modal="true" aria-labelledby="secret-letter-title">
+                <span class="secret-letter__eyebrow">A HIDDEN LETTER · To 刘烨</span>
+                <h2 class="secret-letter__title" id="secret-letter-title">你找到了那朵金色的玫瑰</h2>
+                <div class="secret-letter__body">
+                    <p>刘烨：</p>
+                    <p>这束花里藏着十九句想对你说的话，而这一句，只想在最后交给你。</p>
+                    <p>谢谢你来到我的生活里。愿以后每一个有花的日子，都有你在身边。</p>
+                    <p>如果浪漫有形状，大概就是今晚这束玫瑰，和我看向你时的样子。</p>
+                </div>
+                <button class="secret-letter__close" id="secret-letter-close" type="button">收好这封信</button>
+            </article>
         </div>
 
         <div class="fallback" hidden>

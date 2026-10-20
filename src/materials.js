@@ -11,6 +11,9 @@ uniform float uDrift;
 uniform float uTwinkle;
 uniform float uIntensity;
 uniform float uSwirl;
+uniform vec3 uPointer;
+uniform float uPointerStrength;
+uniform float uPointerRadius;
 uniform vec3 uKeyDir;
 uniform vec3 uRimDir;
 uniform vec3 uRimColor;
@@ -38,6 +41,15 @@ void main() {
     transformed.xz += radialDirection * sin(uTime * 0.75 + phase + position.y * 1.1) * uSway * 0.35;
     transformed.x += sin(quick + position.y * 2.0) * uSway * 0.22;
     transformed.z += cos(quick * 0.87 + position.y * 1.3) * uSway * 0.18;
+
+    float pointerDistance = distance(transformed, uPointer);
+    float pointerInfluence = smoothstep(uPointerRadius, 0.0, pointerDistance) * uPointerStrength;
+    if (pointerInfluence > 0.001) {
+        vec3 away = normalize(transformed - uPointer + vec3(0.0001));
+        transformed += away * pointerInfluence * 0.14;
+        transformed.x += -away.z * pointerInfluence * 0.08;
+        transformed.z += away.x * pointerInfluence * 0.08;
+    }
 
     vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
     vec3 worldNormal = normalize(mat3(modelMatrix) * normal);
@@ -217,6 +229,7 @@ void main() {
 const GLASS_FRAGMENT = /* glsl */ `
 uniform vec3 uTint;
 uniform vec3 uEdgeTint;
+uniform vec3 uLightDir;
 uniform float uOpacity;
 uniform float uGlow;
 
@@ -237,6 +250,10 @@ void main() {
     vec3 color = uTint * (0.18 + fresnel * 0.62 + edge * 1.1);
     color += uEdgeTint * (edge * 0.85 + streak * 0.12) * uGlow;
     color += uTint * streak * 0.08;
+
+    // 主光方向变化时，玻璃表面产生一道很淡的移动反光
+    float sheen = pow(max(dot(normal, normalize(uLightDir)), 0.0), 3.5);
+    color += uEdgeTint * sheen * 0.05 * uGlow;
 
     float alpha = (0.008 + fresnel * 0.052 + edge * 0.2 + streak * 0.02) * uOpacity;
     alpha *= uGlow;
@@ -373,6 +390,9 @@ export function createParticleMaterial(options = {}) {
             uDrift: { value: drift },
             uSwirl: { value: swirl },
             uTwinkle: { value: twinkle },
+            uPointer: { value: new THREE.Vector3(999, 999, 999) },
+            uPointerStrength: { value: 0 },
+            uPointerRadius: { value: 0.85 },
             uIntensity: { value: intensity },
             uKeyDir: { value: new THREE.Vector3(-0.48, 0.82, 0.5).normalize() },
             uRimDir: { value: new THREE.Vector3(0.7, 0.28, -0.55).normalize() },
@@ -396,6 +416,7 @@ export function createGlassMaterial() {
         uniforms: {
             uTint: { value: new THREE.Color(0.36, 0.52, 0.62) },
             uEdgeTint: { value: new THREE.Color(1.0, 0.78, 0.48) },
+            uLightDir: { value: new THREE.Vector3(-0.48, 0.82, 0.5).normalize() },
             uOpacity: { value: 1 },
             uGlow: { value: 1 }
         },
