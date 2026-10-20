@@ -75,6 +75,11 @@ let hintButton;
 let replayButton;
 let cursorElement;
 let loveRibbonLayer;
+let dragHintElement;
+let loveLetterElement;
+let dragHintShowTimer;
+let dragHintHideTimer;
+let letterTimer;
 let lastOpeningMessage = '';
 let loveDeck = [];
 
@@ -378,9 +383,12 @@ function createPostProcessing() {
  */
 function computeFitDistance() {
     const verticalFov = THREE.MathUtils.degToRad(camera.fov);
-    const fitHeight = 5.55 / (2 * Math.tan(verticalFov / 2));
-    const fitWidth = 5.05 / (2 * Math.tan(verticalFov / 2) * camera.aspect);
-    return Math.max(fitHeight, fitWidth) * 1.035;
+    const portraitMobile = isMobile && window.innerHeight > window.innerWidth;
+    const heightTarget = portraitMobile ? 5.8 : 5.55;
+    const widthTarget = portraitMobile ? 3.2 : 5.05;
+    const fitHeight = heightTarget / (2 * Math.tan(verticalFov / 2));
+    const fitWidth = widthTarget / (2 * Math.tan(verticalFov / 2) * camera.aspect);
+    return Math.max(fitHeight, fitWidth) * 1.02;
 }
 
 /**
@@ -508,6 +516,62 @@ function clearLoveRibbons() {
 }
 
 /**
+ * 隐藏拖拽提示
+ */
+function hideDragHint() {
+    clearTimeout(dragHintHideTimer);
+    if (dragHintElement) {
+        dragHintElement.classList.remove('is-visible');
+        dragHintElement.setAttribute('aria-hidden', 'true');
+    }
+}
+
+/**
+ * 清除开盒后的提示与信卡
+ */
+function clearOpenOverlays() {
+    clearTimeout(dragHintShowTimer);
+    clearTimeout(dragHintHideTimer);
+    clearTimeout(letterTimer);
+    hideDragHint();
+    document.body.classList.remove('is-letter');
+    if (loveLetterElement) {
+        loveLetterElement.setAttribute('aria-hidden', 'true');
+    }
+}
+
+/**
+ * 等彩条飘起后显示拖拽提示，最后落下一封信
+ */
+function scheduleOpenOverlays() {
+    clearOpenOverlays();
+
+    dragHintShowTimer = setTimeout(() => {
+        if (state.mode !== 'opening' && state.mode !== 'open') {
+            return;
+        }
+        if (state.hasDragged) {
+            return;
+        }
+        if (dragHintElement) {
+            dragHintElement.classList.add('is-visible');
+            dragHintElement.setAttribute('aria-hidden', 'false');
+        }
+        dragHintHideTimer = setTimeout(hideDragHint, 4200);
+    }, 2400);
+
+    letterTimer = setTimeout(() => {
+        if (state.mode !== 'open') {
+            return;
+        }
+        document.body.classList.add('is-letter');
+        if (loveLetterElement) {
+            loveLetterElement.setAttribute('aria-hidden', 'false');
+        }
+    }, reduceMotion ? 5600 : 8200);
+}
+
+/**
  * 开盒时随机飘出写给刘烨的文字彩条
  */
 function spawnLoveRibbons() {
@@ -518,8 +582,8 @@ function spawnLoveRibbons() {
     clearLoveRibbons();
 
     const tones = ['rose', 'blush', 'gold', 'wine'];
-    const baseCount = reduceMotion ? 7 : (isMobile ? 14 : 22);
-    const count = baseCount + Math.floor(Math.random() * 4);
+    const baseCount = reduceMotion ? 6 : (isMobile ? 12 : 18);
+    const count = baseCount + Math.floor(Math.random() * 3);
     const messages = drawLoveMessages(count);
 
     if (messages[0] === lastOpeningMessage && messages.length > 1) {
@@ -530,7 +594,8 @@ function spawnLoveRibbons() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const centerX = width * 0.5;
-    const centerY = height * (isMobile ? 0.4 : 0.43);
+    const centerY = height * (isMobile ? 0.38 : 0.42);
+    const edgePadding = isMobile ? 14 : 32;
 
     for (let index = 0; index < count; index += 1) {
         const message = messages[index % messages.length];
@@ -541,19 +606,33 @@ function spawnLoveRibbons() {
             element.classList.add('is-accent');
         }
         element.textContent = message;
-
-        const startAngle = Math.random() * Math.PI * 2;
-        const startRadiusX = width * (0.02 + Math.random() * 0.085);
-        const startRadiusY = height * (0.012 + Math.random() * 0.055);
-        const startX = centerX + Math.cos(startAngle) * startRadiusX;
-        const startY = centerY + Math.sin(startAngle) * startRadiusY;
-        element.style.left = `${startX}px`;
-        element.style.top = `${startY}px`;
         loveRibbonLayer.appendChild(element);
 
-        const stagger = reduceMotion ? 0 : (index / count) * 2400;
-        const delay = 160 + stagger + Math.random() * 380;
-        const duration = reduceMotion ? 3600 : 4300 + Math.random() * 2500;
+        const halfWidth = element.offsetWidth / 2;
+        const halfHeight = element.offsetHeight / 2;
+        const startAngle = Math.random() * Math.PI * 2;
+        const startRadiusX = width * (isMobile ? 0.11 : 0.1)
+            + Math.random() * width * 0.06;
+        const startRadiusY = height * (isMobile ? 0.045 : 0.05)
+            + Math.random() * height * 0.035;
+        const startX = Math.max(
+            halfWidth + edgePadding,
+            Math.min(
+                width - halfWidth - edgePadding,
+                centerX + Math.cos(startAngle) * startRadiusX
+            )
+        );
+        const startY = Math.max(
+            halfHeight + edgePadding,
+            Math.min(height * 0.63, centerY + Math.sin(startAngle) * startRadiusY)
+        );
+        element.style.left = `${startX}px`;
+        element.style.top = `${startY}px`;
+
+        const wave = index % 3;
+        const waveStart = [160, 1350, 2600][wave];
+        const delay = reduceMotion ? 160 + Math.random() * 400 : waveStart + Math.random() * 420;
+        const duration = reduceMotion ? 3600 : 4400 + Math.random() * 2200;
         const startRotation = (Math.random() * 2 - 1) * 5;
         const endRotation = startRotation + (Math.random() * 2 - 1) * 16;
 
@@ -582,11 +661,22 @@ function spawnLoveRibbons() {
             continue;
         }
 
-        const travelAngle = startAngle + (Math.random() - 0.5) * 0.65;
-        const distance = width * (0.13 + Math.random() * 0.22);
-        const travelX = Math.cos(travelAngle) * distance;
-        const travelY = Math.sin(travelAngle) * distance * 0.45
-            - height * (0.07 + Math.random() * 0.21);
+        const travelAngle = startAngle + (Math.random() - 0.5) * 0.55;
+        const distance = width * (isMobile ? 0.15 : 0.14)
+            + Math.random() * width * (isMobile ? 0.12 : 0.14);
+        let travelX = Math.cos(travelAngle) * distance;
+        let travelY = Math.sin(travelAngle) * distance * 0.38
+            - height * (0.08 + Math.random() * 0.18);
+        const endX = Math.max(
+            halfWidth + edgePadding,
+            Math.min(width - halfWidth - edgePadding, startX + travelX)
+        );
+        const endY = Math.max(
+            halfHeight + edgePadding,
+            Math.min(height - halfHeight - edgePadding, startY + travelY)
+        );
+        travelX = endX - startX;
+        travelY = endY - startY;
 
         const animation = element.animate([
             {
@@ -631,10 +721,12 @@ function openCase() {
     openStateTime = 0;
     state.dragging = false;
     state.spinVelocity = 0;
+    state.hasDragged = false;
     state.burstVisible = true;
     sparkMaterial.uniforms.uOriginTime.value = clock.elapsedTime + 0.14;
     setInterfaceMode('opening');
     spawnLoveRibbons();
+    scheduleOpenOverlays();
 }
 
 /**
@@ -653,6 +745,7 @@ function closeCase() {
     state.burstVisible = false;
     sparkMaterial.uniforms.uOriginTime.value = -1;
     clearLoveRibbons();
+    clearOpenOverlays();
     setInterfaceMode('closing');
 }
 
@@ -682,8 +775,10 @@ function bindInteraction() {
         }
         if (state.mode === 'open') {
             state.dragging = true;
+            state.hasDragged = true;
             state.lastPointerX = event.clientX;
             canvas.setPointerCapture(event.pointerId);
+            hideDragHint();
         }
     });
 
@@ -824,7 +919,8 @@ function updateScene() {
 
     // 玻璃打开后让花束向外舒展，最终略宽于底座
     const bloomEase = smoothstep(0.55, 1, state.openProgress);
-    const bloomScale = 1 + bloomEase * 0.32;
+    const bloomAmount = isMobile ? 0.05 : 0.32;
+    const bloomScale = 1 + bloomEase * bloomAmount;
     bouquetGroup.scale.set(1.05 * bloomScale, 1.05, 1.05 * bloomScale);
 
     if (bouquetMaterials) {
@@ -836,7 +932,7 @@ function updateScene() {
         bouquetMaterials.glowMaterial.uniforms.uSwirl.value = 0.003 + materialMotion * 0.01;
     }
 
-    const targetDistance = fitDistance * (1 + openEase * 0.06);
+    const targetDistance = fitDistance * (1 + openEase * (isMobile ? 0 : 0.06));
     const driftX = reduceMotion ? 0 : Math.sin(elapsed * 0.18) * 0.08;
     const targetX = state.pointerX * 0.16 + driftX;
     const targetY = 5.4 - openEase * 0.16 + state.pointerY * 0.045
@@ -846,7 +942,7 @@ function updateScene() {
     camera.position.x = lerp(camera.position.x, targetX, follow);
     camera.position.y = lerp(camera.position.y, targetY, follow);
     camera.position.z = lerp(camera.position.z, targetDistance, Math.min(1, delta * 2.8));
-    camera.lookAt(0, 2.4 + openEase * 0.03, 0);
+    camera.lookAt(0, (isMobile ? 2.05 : 2.4) + openEase * 0.025, 0);
 
     motesMaterial.uniforms.uOpacity.value = lerp(
         motesMaterial.uniforms.uOpacity.value,
@@ -924,6 +1020,8 @@ async function boot() {
     replayButton = document.getElementById('replay');
     cursorElement = document.getElementById('cursor');
     loveRibbonLayer = document.getElementById('love-ribbons');
+    dragHintElement = document.getElementById('drag-hint');
+    loveLetterElement = document.getElementById('love-letter');
 
     createStage();
     const bouquetInfo = createBouquet();

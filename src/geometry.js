@@ -102,7 +102,10 @@ function createPetalSurface(petal) {
         height += petal.fold * Math.sin(v * Math.PI * 2 + petal.phase) * u;
 
         const ripple = Math.sin(v * Math.PI * 1.7 + petal.phase) * petal.fold * u;
-        const radius = radial + ripple;
+        const notch = (petal.notch ?? 0)
+            * Math.pow(u, 5)
+            * Math.max(0, 1 - Math.abs(v) * 2.8);
+        const radius = radial + ripple - notch;
 
         return new THREE.Vector3(
             Math.cos(angle) * radius,
@@ -149,10 +152,116 @@ function petalColor(point, u, v, fraction, petalTint) {
     const color = COLORS.roseDeep.clone();
     color.lerp(COLORS.roseMid, 0.3 + radial * 0.48);
     color.lerp(COLORS.roseRed, 0.14 + radial * 0.4);
-    color.lerp(COLORS.roseEdge, Math.pow(edge, 2.2) * 0.44);
+    color.lerp(COLORS.roseEdge, Math.pow(edge, 2.2) * 0.36);
     color.multiplyScalar(0.6 + height * 0.5 + radial * 0.08);
+    color.multiplyScalar(0.7 + smoothstep(0.06, 0.42, u) * 0.3);
     color.multiplyScalar(petalTint);
     return color;
+}
+
+/**
+ * 将一片花瓣写入粒子点云
+ * @param {PointCloudBuilder} solids 实体粒子
+ * @param {PointCloudBuilder} glow 发光粒子
+ * @param {THREE.Matrix4} matrix 玫瑰变换矩阵
+ * @param {THREE.Matrix3} normalMatrix 法线矩阵
+ * @param {object} petal 花瓣参数
+ * @param {number} fraction 花瓣在花头中的内外位置
+ * @param {() => number} random 随机函数
+ * @param {number} quality 画质系数
+ * @param {object} options 瓣层样式
+ */
+function emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, random, quality, options = {}) {
+    const surface = createPetalSurface(petal);
+    const layerPosition = clamp(fraction, 0, 1.15);
+    const density = options.density ?? 1;
+    const rowCount = Math.max(6, Math.round((8 + layerPosition * 3) * quality * density));
+    const cellCount = Math.max(5, Math.round((6 + layerPosition * 3) * quality * density));
+    const petalTint = options.tint ?? (0.94 + random() * 0.08);
+    const petalSize = options.size ?? (0.0115 + layerPosition * 0.003);
+    const dewChance = options.dewChance ?? 0.0045;
+
+    for (let row = 0; row < rowCount; row += 1) {
+        for (let column = 0; column < cellCount; column += 1) {
+            const rowJitter = (random() - 0.5) * 0.55;
+            const columnJitter = (random() - 0.5) * 0.55;
+            const u = clamp((row + 0.5 + rowJitter) / rowCount, 0.01, 0.995);
+            const v = clamp(
+                ((column + 0.5 + columnJitter) / cellCount) * 2 - 1,
+                -0.995,
+                0.995
+            );
+            const point = surface(u, v);
+            const normal = petalNormal(surface, u, v, point);
+            point.addScaledVector(normal, (random() - 0.5) * 0.003);
+
+            const color = petalColor(point, u, v, fraction, petalTint);
+            if (options.shadow) {
+                color.multiplyScalar(options.shadow);
+            }
+            solids.addTransformed(
+                point,
+                normal,
+                color,
+                petalSize,
+                random(),
+                matrix,
+                normalMatrix,
+                1
+            );
+
+            if (random() < dewChance) {
+                const dew = COLORS.roseDew.clone().lerp(COLORS.gold, random() * 0.35);
+                glow.addTransformed(
+                    point,
+                    normal,
+                    dew,
+                    0.007 + random() * 0.005,
+                    random(),
+                    matrix,
+                    normalMatrix,
+                    0.5
+                );
+            }
+        }
+    }
+
+    const rimCount = Math.max(0, Math.round((options.rimCount ?? 12) * quality));
+    for (let rimIndex = 0; rimIndex < rimCount; rimIndex += 1) {
+        const u = 0.3 + (rimIndex / rimCount) * 0.68;
+        for (const side of [-1, 1]) {
+            const v = side * (0.93 + random() * 0.05);
+            const point = surface(u, v);
+            const normal = petalNormal(surface, u, v, point);
+            point.addScaledVector(normal, 0.007);
+            const color = (options.rimColor ?? COLORS.roseEdge).clone();
+            color.lerp(COLORS.champagneLight, (options.rimChampagne ?? 0.14) + random() * 0.1);
+            color.multiplyScalar(options.rimBrightness ?? (0.95 + random() * 0.12));
+            solids.addTransformed(
+                point,
+                normal,
+                color,
+                petalSize * (options.rimSize ?? 0.9),
+                random(),
+                matrix,
+                normalMatrix,
+                options.rimAlpha ?? 0.95
+            );
+
+            if (rimIndex % 3 === 0) {
+                glow.addTransformed(
+                    point,
+                    normal,
+                    COLORS.gold.clone().lerp(COLORS.roseEdge, 0.42),
+                    petalSize * 0.55,
+                    random(),
+                    matrix,
+                    normalMatrix,
+                    0.3
+                );
+            }
+        }
+    }
 }
 
 /**
@@ -215,89 +324,87 @@ function addSpiralRose(solids, glow, head, random, quality) {
             phase: random() * Math.PI * 2,
             tipCurl: (0.35 - fraction) * 0.035
         };
-        const surface = createPetalSurface(petal);
-        const rowCount = Math.max(7, Math.round((8 + fraction * 3) * quality));
-        const cellCount = Math.max(6, Math.round((6 + fraction * 3) * quality));
-        const petalTint = 0.94 + random() * 0.08;
-        const petalSize = 0.0115 + fraction * 0.003;
+        emitRosePetal(solids, glow, matrix, normalMatrix, petal, fraction, random, quality);
+    }
 
-        for (let row = 0; row < rowCount; row += 1) {
-            for (let column = 0; column < cellCount; column += 1) {
-                const rowJitter = (random() - 0.5) * 0.55;
-                const columnJitter = (random() - 0.5) * 0.55;
-                const u = clamp((row + 0.5 + rowJitter) / rowCount, 0.01, 0.995);
-                const v = clamp(
-                    ((column + 0.5 + columnJitter) / cellCount) * 2 - 1,
-                    -0.995,
-                    0.995
-                );
-                const point = surface(u, v);
-                const normal = petalNormal(surface, u, v, point);
-                point.addScaledVector(normal, (random() - 0.5) * 0.003);
-
-                const color = petalColor(point, u, v, fraction, petalTint);
-                solids.addTransformed(
-                    point,
-                    normal,
-                    color,
-                    petalSize,
-                    random(),
-                    matrix,
-                    normalMatrix,
-                    1
-                );
-
-                if (random() < 0.0045) {
-                    const dew = COLORS.roseDew.clone().lerp(COLORS.gold, random() * 0.35);
-                    glow.addTransformed(
-                        point,
-                        normal,
-                        dew,
-                        0.007 + random() * 0.005,
-                        random(),
-                        matrix,
-                        normalMatrix,
-                        0.5
-                    );
-                }
-            }
+    // 在主体螺旋之外增加两层舒展的外瓣，让花头从侧面看更像玫瑰
+    const outerLayers = [
+        {
+            count: 8,
+            rotation: 0.18,
+            inner: 0.075,
+            outer: 0.44,
+            width: 0.21,
+            baseY: 0.065,
+            arch: 0.22,
+            tipDrop: 0.03,
+            cup: 0.05,
+            wrap: 0.58,
+            swirl: 0.06,
+            fold: 0.016,
+            tipCurl: -0.015,
+            notch: 0.015,
+            tint: 0.86,
+            size: 0.0135,
+            rimCount: 0
+        },
+        {
+            count: 9,
+            rotation: 0.62,
+            inner: 0.09,
+            outer: 0.46,
+            width: 0.23,
+            baseY: 0.045,
+            arch: 0.2,
+            tipDrop: 0.04,
+            cup: 0.045,
+            wrap: 0.55,
+            swirl: 0.04,
+            fold: 0.02,
+            tipCurl: -0.02,
+            notch: 0.025,
+            tint: 0.8,
+            size: 0.014,
+            rimCount: 0
         }
+    ];
 
-        const rimCount = Math.max(8, Math.round(12 * quality));
-        for (let rimIndex = 0; rimIndex < rimCount; rimIndex += 1) {
-            const u = 0.3 + (rimIndex / rimCount) * 0.68;
-            for (const side of [-1, 1]) {
-                const v = side * (0.93 + random() * 0.05);
-                const point = surface(u, v);
-                const normal = petalNormal(surface, u, v, point);
-                point.addScaledVector(normal, 0.007);
-                const color = COLORS.roseEdge.clone();
-                color.lerp(COLORS.champagneLight, 0.16 + random() * 0.14);
-                color.multiplyScalar(0.95 + random() * 0.12);
-                solids.addTransformed(
-                    point,
-                    normal,
-                    color,
-                    petalSize * 0.9,
-                    random(),
-                    matrix,
-                    normalMatrix,
-                    0.95
-                );
-
-                if (rimIndex % 3 === 0) {
-                    glow.addTransformed(
-                        point,
-                        normal,
-                        COLORS.gold.clone().lerp(COLORS.roseEdge, 0.42),
-                        petalSize * 0.55,
-                        random(),
-                        matrix,
-                        normalMatrix,
-                        0.3
-                    );
+    for (let layerIndex = 0; layerIndex < outerLayers.length; layerIndex += 1) {
+        const layer = outerLayers[layerIndex];
+        for (let petalIndex = 0; petalIndex < layer.count; petalIndex += 1) {
+            const petal = {
+                angle: layer.rotation + petalIndex * GOLDEN_ANGLE + (random() - 0.5) * 0.08,
+                inner: layer.inner * (0.94 + random() * 0.12),
+                outer: layer.outer * (0.97 + random() * 0.06),
+                width: layer.width * (0.94 + random() * 0.12),
+                baseY: layer.baseY + (random() - 0.5) * 0.01,
+                arch: layer.arch * (0.92 + random() * 0.16),
+                tipDrop: layer.tipDrop * (0.92 + random() * 0.16),
+                cup: layer.cup * (0.9 + random() * 0.2),
+                wrap: layer.wrap * (0.94 + random() * 0.12),
+                swirl: layer.swirl * (0.8 + random() * 0.4),
+                fold: layer.fold,
+                phase: random() * Math.PI * 2,
+                tipCurl: layer.tipCurl * (0.9 + random() * 0.2),
+                notch: layer.notch * (0.8 + random() * 0.4)
+            };
+            emitRosePetal(
+                solids,
+                glow,
+                matrix,
+                normalMatrix,
+                petal,
+                1 + layerIndex * 0.06,
+                random,
+                quality,
+                {
+                    tint: layer.tint,
+                    size: layer.size,
+                    rimCount: 0,
+                    density: layerIndex === 0 ? 0.72 : 0.68,
+                    shadow: layerIndex === 0 ? 0.9 : 0.84
                 }
-            }
+            );
         }
     }
 
@@ -342,48 +449,48 @@ function addSpiralRose(solids, glow, head, random, quality) {
     }
 
     // 用一条贴伏在花心的螺旋暗线强化玫瑰的旋心结构
-    const spiralCount = Math.round(230 * quality);
+    const spiralCount = Math.round(320 * quality);
     const spiralOffset = random() * Math.PI * 2;
     for (let index = 0; index < spiralCount; index += 1) {
         const t = index / spiralCount;
-        const radius = 0.014 + t * 0.18;
-        const angle = spiralOffset + t * Math.PI * 4.6;
+        const radius = 0.014 + t * 0.22;
+        const angle = spiralOffset + t * Math.PI * 5.2;
         const fraction = clamp((radius - 0.1) / 0.38, 0, 1);
-        const top = 0.12 * (1 - fraction) + (0.31 - fraction * 0.11) + 0.012;
+        const top = 0.12 * (1 - fraction) + (0.31 - fraction * 0.11) + 0.016;
         const point = new THREE.Vector3(
             Math.cos(angle) * radius,
             top,
             Math.sin(angle) * radius
         );
         const normal = new THREE.Vector3(0, 1, 0);
-        const color = COLORS.roseDeep.clone().lerp(COLORS.roseMid, 0.2);
+        const color = COLORS.roseDeep.clone().lerp(COLORS.roseMid, 0.16);
         solids.addTransformed(
             point,
             normal,
             color,
-            0.0125,
+            0.014,
             random(),
             matrix,
             normalMatrix,
             1
         );
 
-        if (index % 3 === 0) {
+        if (index % 2 === 0) {
             const highlight = new THREE.Vector3(
-                Math.cos(angle + 0.16) * (radius + 0.008),
-                top + 0.002,
-                Math.sin(angle + 0.16) * (radius + 0.008)
+                Math.cos(angle + 0.13) * (radius + 0.01),
+                top + 0.003,
+                Math.sin(angle + 0.13) * (radius + 0.01)
             );
-            const glowColor = COLORS.gold.clone().lerp(COLORS.roseEdge, 0.46);
+            const glowColor = COLORS.gold.clone().lerp(COLORS.roseEdge, 0.44);
             glow.addTransformed(
                 highlight,
                 normal,
                 glowColor,
-                0.0065,
+                0.008,
                 random(),
                 matrix,
                 normalMatrix,
-                0.34
+                0.46
             );
         }
     }
